@@ -1,17 +1,16 @@
 document.addEventListener('DOMContentLoaded', () => {
-
     const cartFab = document.querySelector('.cart-fab');
     const menuGrid = document.querySelector('.menu-grid');
+    const sidebarOffcanvas = document.getElementById('sidebarOffcanvas');
+    const hamburgerButton = document.querySelector('[data-bs-target="#sidebarOffcanvas"]');
     let cart = []; // Array untuk menyimpan item di keranjang
 
     // --- FUNGSI UTAMA ---
-
     const updateCartUI = () => {
         const cartItemsContainer = document.getElementById('cart-items-container');
         const cartBadge = document.querySelector('.cart-badge');
         const cartTotalPriceEl = document.getElementById('cart-total-price');
-        const emptyCartMessage = document.querySelector('.empty-cart-message');
-
+        
         cartItemsContainer.innerHTML = '';
         let totalItems = 0;
         let totalPrice = 0;
@@ -44,7 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     
     const flyToCartAnimation = (startElement) => {
-        const imgToFly = startElement.cloneNode();
+        const imgToFly = startElement.cloneNode(true);
         const startRect = startElement.getBoundingClientRect();
         const endRect = cartFab.getBoundingClientRect();
         imgToFly.classList.add('fly-to-cart-image');
@@ -70,8 +69,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- EVENT LISTENERS ---
-
-    // Menggunakan Event Delegation untuk tombol "Tambah ke Keranjang"
     menuGrid.addEventListener('click', (e) => {
         if (e.target.classList.contains('btn-add-to-cart')) {
             const card = e.target.closest('.menu-card');
@@ -113,6 +110,19 @@ document.addEventListener('DOMContentLoaded', () => {
             updateCartUI();
         }
     });
+
+    // === PERBAIKAN UNTUK TOMBOL HAMBURGER ===
+    if (sidebarOffcanvas) {
+        // Saat menu sidebar akan ditampilkan
+        sidebarOffcanvas.addEventListener('show.bs.offcanvas', () => {
+            hamburgerButton.style.display = 'none'; // Sembunyikan tombol
+        });
+
+        // Saat menu sidebar sudah ditutup
+        sidebarOffcanvas.addEventListener('hidden.bs.offcanvas', () => {
+            hamburgerButton.style.display = 'block'; // Tampilkan lagi tombolnya
+        });
+    }
 
     updateCartUI(); // Initial call
 });
