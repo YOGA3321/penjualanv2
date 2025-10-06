@@ -70,13 +70,13 @@ body {
 .cart-total { display: flex; justify-content: space-between; margin-bottom: 1rem; }
 .btn-checkout { width: 100%; padding: 0.8rem; background-color: var(--primary-color); color: #fff; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; }
 
-/* === PERBAIKAN ANIMASI === */
 .fly-to-cart-image {
     position: absolute;
-    border-radius: 50%; /* << DIUBAH MENJADI 50% AGAR BULAT */
+    /* Pastikan border-radius 50% untuk membuatnya bulat sempurna */
+    border-radius: 50%; 
     z-index: 1100;
     transition: all 0.7s ease-in-out;
-    object-fit: cover;
+    object-fit: cover; /* Menjaga rasio gambar saat diubah bentuk */
 }
 
 /* ===== Media Queries untuk Tampilan Responsive ===== */
@@ -91,4 +91,32 @@ body {
     .main-header h1 { font-size: 1.5rem; }
     .main-content { padding: 1rem; }
     .cart-fab { bottom: 1rem; right: 1rem; }
+}
+
+/* ===== STYLING TAMBAHAN UNTUK HALAMAN ADMIN ===== */
+
+.sidebar-heading {
+    padding: 0.5rem 1.5rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #999;
+    text-transform: uppercase;
+    margin-top: 1rem;
+}
+
+.table-img {
+    width: 60px;
+    height: 60px;
+    border-radius: 10px;
+    object-fit: cover;
+}
+
+.table th {
+    font-weight: 600;
+}
+
+.card {
+    border: none;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    border-radius: 15px;
 }

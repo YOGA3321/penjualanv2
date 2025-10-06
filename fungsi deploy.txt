@@ -1,3 +1,3 @@
 git add .
-git commit -m "Perbaikan gambar"
+git commit -m "Admin Menu"
 git push origin main
