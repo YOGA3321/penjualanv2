@@ -130,19 +130,19 @@
                              <table class="table table-hover align-middle mb-0">
                                 <tbody>
                                     <tr>
-                                        <td><img src="https://i.pravatar.cc/150?u=pelanggan1" class="table-img-sm"> Siti Aminah</td>
+                                        <td>Siti Aminah</td>
                                         <td>Meja 02</td>
                                         <td><strong>Rp 175.000</strong></td>
                                         <td><span class="badge bg-success">Lunas</span></td>
                                     </tr>
                                      <tr>
-                                        <td><img src="https://i.pravatar.cc/150?u=pelanggan2" class="table-img-sm"> Eko Wijoyo</td>
+                                        <td>Eko Wijoyo</td>
                                         <td>Meja 05</td>
                                         <td><strong>Rp 85.000</strong></td>
                                         <td><span class="badge bg-success">Lunas</span></td>
                                     </tr>
                                      <tr>
-                                        <td><img src="https://i.pravatar.cc/150?u=pelanggan3" class="table-img-sm"> Rina Marlina</td>
+                                        <td>Rina Marlina</td>
                                         <td>Take Away</td>
                                         <td><strong>Rp 25.000</strong></td>
                                         <td><span class="badge bg-warning text-dark">Pending</span></td>

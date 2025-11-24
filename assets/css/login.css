@@ -1,4 +1,3 @@
-/* Import Font & Global Style */
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 
 * {
@@ -13,7 +12,7 @@ body {
     justify-content: center;
     align-items: center;
     min-height: 100vh;
-    background: url('https://images.unsplash.com/photo-1490818387583-1b48b9093c2b?q=80&w=2070&auto=format&fit=crop') no-repeat;
+    background: url('../images/hero-bg.jpg') no-repeat;
     background-size: cover;
     background-position: center;
 }
@@ -30,7 +29,7 @@ body {
 .wrapper {
     position: relative;
     width: 400px;
-    height: 520px;
+    height: 440px;
     background: transparent;
     border: 2px solid rgba(255, 255, 255, 0.5);
     border-radius: 20px;
@@ -39,39 +38,12 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    overflow: hidden; /* Penting untuk animasi slide */
-    transition: height 0.3s ease;
-}
-
-/* Mengubah tinggi wrapper saat form register aktif */
-.wrapper.active {
-    height: 580px;
+    overflow: hidden;
 }
 
 .wrapper .form-box {
     width: 100%;
     padding: 40px;
-}
-
-.wrapper .form-box.login {
-    transition: transform 0.2s ease;
-    transform: translateX(0);
-}
-
-.wrapper.active .form-box.login {
-    transition: none;
-    transform: translateX(-400px);
-}
-
-.wrapper .form-box.register {
-    position: absolute;
-    transition: none;
-    transform: translateX(400px);
-}
-
-.wrapper.active .form-box.register {
-    transition: transform 0.2s ease;
-    transform: translateX(0);
 }
 
 h2 {
@@ -88,21 +60,22 @@ h2 {
     margin: 30px 0;
 }
 
+/* --- PERBAIKAN LOGIKA LABEL --- */
+.input-box input:focus~label,
+.input-box input:not(:placeholder-shown)~label {
+    top: -5px;
+}
+
 .input-box label {
     position: absolute;
     top: 50%;
-    left: 5px;
+    left: 5px; /* Label mulai dari kiri */
     transform: translateY(-50%);
     font-size: 1em;
     color: #fff;
     font-weight: 500;
     pointer-events: none;
     transition: 0.5s;
-}
-
-.input-box input:focus~label,
-.input-box input:valid~label {
-    top: -5px;
 }
 
 .input-box input {
@@ -114,34 +87,27 @@ h2 {
     font-size: 1em;
     color: #fff;
     font-weight: 600;
-    padding: 0 35px 0 5px;
+    /* Beri ruang untuk teks di kiri dan ikon di kanan */
+    padding: 0 40px 0 5px; 
 }
 
+/* --- PERBAIKAN POSISI IKON --- */
 .input-box .icon {
     position: absolute;
-    right: 8px;
+    right: 8px; /* Pindahkan ikon email ke kanan */
     font-size: 1.2em;
     color: #fff;
     line-height: 57px;
 }
 
-/* == CSS BARU UNTUK ICON MATA == */
 .input-box .icon-toggle {
     position: absolute;
-    right: 8px; /* Posisikan di kanan */
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 1.1em;
+    right: 8px; /* Ikon mata tetap di kanan */
+    font-size: 1.2em;
     color: #fff;
+    line-height: 57px;
     cursor: pointer;
-    line-height: 57px; /* Menyelaraskan vertikal */
 }
-
-/* Saat ada icon mata, geser ikon gembok/amplop ke kiri */
-.input-box.password-visible .icon {
-    /* (opsional) bisa di-hide jika mau */
-}
-/* == AKHIR CSS BARU == */
 
 .remember-forgot {
     font-size: 0.9em;
@@ -178,50 +144,6 @@ h2 {
     color: #333;
     font-weight: 600;
 }
-
-.divider {
-    text-align: center;
-    color: #fff;
-    display: flex;
-    align-items: center;
-    margin: 15px 0;
-}
-.divider::before, .divider::after {
-    content: '';
-    flex: 1;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.5);
-}
-.divider span {
-    padding: 0 1rem;
-    font-size: 0.9em;
-}
-
-.btn-google {
-    width: 100%;
-    height: 45px;
-    background: transparent;
-    border: 1px solid #fff;
-    outline: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 1em;
-    color: #fff;
-    font-weight: 600;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    transition: background 0.3s;
-    text-decoration: none;
-}
-
-.btn-google:hover {
-    background: rgba(255, 255, 255, 0.1);
-}
-
-.btn-google .fa-google {
-    margin-right: 10px;
-}
-
 
 .login-register {
     font-size: 0.9em;

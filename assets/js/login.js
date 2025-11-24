@@ -1,41 +1,78 @@
-const wrapper = document.querySelector('.wrapper');
-const loginLink = document.querySelector('.login-link');
-const registerLink = document.querySelector('.register-link');
+document.addEventListener('DOMContentLoaded', () => {
+    const loginForm = document.getElementById('ajax-login-form');
+    const loginButton = document.getElementById('login-button');
 
-// Logika untuk slide antara form login dan register
-registerLink.addEventListener('click', (e) => {
-    e.preventDefault(); // Mencegah link berpindah halaman
-    wrapper.classList.add('active');
-});
+    if (loginForm) {
+        loginForm.addEventListener('submit', function(event) {
+            event.preventDefault(); // Mencegah halaman refresh
 
-loginLink.addEventListener('click', (e) => {
-    e.preventDefault(); // Mencegah link berpindah halaman
-    wrapper.classList.remove('active');
-});
+            // Tampilkan loading di tombol
+            loginButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            loginButton.disabled = true;
 
+            // FormData akan otomatis mengambil semua input yang memiliki atribut 'name'
+            const formData = new FormData(this);
 
-// == JAVASCRIPT BARU UNTUK TOGGLE PASSWORD ==
+            // === PERBAIKAN PATH FETCH ===
+            fetch('auth/proses_login.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.status === 'success') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Login Berhasil!',
+                        text: data.message,
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                    // Arahkan ke halaman dari respons PHP setelah notifikasi
+                    setTimeout(() => {
+                        window.location.href = data.redirect;
+                    }, 1500);
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Login Gagal',
+                        text: data.message
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Fetch Error:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Oops...',
+                    text: 'Terjadi kesalahan. Periksa koneksi atau hubungi administrator.'
+                });
+            })
+            .finally(() => {
+                // Kembalikan tombol ke keadaan semula
+                loginButton.innerHTML = 'Masuk';
+                loginButton.disabled = false;
+            });
+        });
+    }
 
-// Fungsi generik untuk menangani toggle password
-const setupPasswordToggle = (toggleId, passwordId) => {
-    const togglePassword = document.getElementById(toggleId);
-    const password = document.getElementById(passwordId);
+    // Logika untuk toggle password
+    const togglePassword = document.getElementById('toggle-password');
+    const password = document.getElementById('password');
 
     if (togglePassword && password) {
-        togglePassword.addEventListener('click', function () {
-            // Dapatkan ikon di dalam span
+        togglePassword.addEventListener('click', function() {
             const icon = this.querySelector('i');
-            // Toggle tipe input
             const type = password.getAttribute('type') === 'password' ? 'text' : 'password';
             password.setAttribute('type', type);
-            
-            // Toggle kelas ikon
+            // Ganti ikon mata
             icon.classList.toggle('fa-eye');
             icon.classList.toggle('fa-eye-slash');
         });
     }
-};
-
-// Panggil fungsi untuk setiap form
-setupPasswordToggle('toggle-login-password', 'login-password');
-setupPasswordToggle('toggle-register-password', 'register-password');
+});
