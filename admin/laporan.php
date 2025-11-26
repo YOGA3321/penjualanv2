@@ -1,165 +1,86 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin: Laporan Penjualan - Waroeng Modern Bites</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/css/dashboard.css">
-    <link rel="shortcut icon" href="../assets/images/pngkey.com-food-network-logo-png-430444.png" type="image/x-icon">
-</head>
-<body>
+<?php
+session_start();
+require_once '../auth/koneksi.php';
 
-<div class="dashboard-wrapper">
-    <aside class="sidebar d-none d-lg-flex">
-        <div class="sidebar-header">
-            <a href="index.html" class="sidebar-logo">
-                <img src="assets/images/pngkey.com-food-network-logo-png-430444.png" alt="Logo">
-                <span>Modern Bites</span>
-            </a>
+$page_title = "Dashboard Laporan";
+$active_menu = "laporan";
+
+// --- LOGIKA ISOLASI CABANG ---
+$cabang_id = $_SESSION['cabang_id']; 
+if ($_SESSION['level'] == 'admin' && isset($_SESSION['view_cabang_id'])) {
+    $cabang_id = $_SESSION['view_cabang_id']; // Override ID jika Admin pilih cabang
+}
+
+// Query Dasar
+$where_clause = "";
+// Jika bukan admin, ATAU (Admin TAPI sedang memilih spesifik cabang)
+if ($_SESSION['level'] != 'admin' || isset($_SESSION['view_cabang_id'])) {
+    $where_clause = " WHERE cabang_id = '$cabang_id'"; 
+}
+
+// Hitung Ringkasan (Contoh Query Sederhana ke tabel terkait)
+// Karena tabel transaksi blm ada isinya, kita count data master dulu sebagai indikator dashboard
+$total_menu = $koneksi->query("SELECT COUNT(*) as total FROM menu" . $where_clause)->fetch_assoc()['total'];
+$total_meja = $koneksi->query("SELECT COUNT(*) as total FROM meja" . $where_clause)->fetch_assoc()['total'];
+
+include '../layouts/admin/header.php';
+?>
+
+<div class="row">
+    <div class="col-12 mb-4">
+        <div class="card bg-primary text-white shadow-sm">
+            <div class="card-body">
+                <h3>Halo, <?= $_SESSION['nama'] ?>!</h3>
+                <p class="mb-0">Selamat datang di panel admin <strong><?= $_SESSION['cabang_name'] ?></strong>.</p>
+            </div>
         </div>
-        <nav class="sidebar-nav">
-            <p class="sidebar-heading">Menu Utama</p>
-            <ul>
-                <li class="active"><a href="admin_laporan.html"><i class="fas fa-chart-line fa-fw"></i> <span>Laporan</span></a></li>
-                <li><a href="admin_menu.html"><i class="fas fa-utensils fa-fw"></i> <span>Manajemen Menu</span></a></li>
-                <li><a href="#"><i class="fas fa-tags fa-fw"></i> <span>Kategori Menu</span></a></li>
-            </ul>
-            <p class="sidebar-heading">Pengelolaan</p>
-            <ul>
-                <li><a href="admin_users.html"><i class="fas fa-users fa-fw"></i> <span>Manajemen User</span></a></li>
-                <li><a href="admin_cabang.html"><i class="fas fa-store fa-fw"></i> <span>Manajemen Cabang</span></a></li>
-                <li><a href="admin_meja.html"><i class="fas fa-chair fa-fw"></i> <span>Manajemen Meja</span></a></li>
-            </ul>
-        </nav>
-        <div class="sidebar-footer">
-            <a href="index.html"><i class="fas fa-sign-out-alt fa-fw"></i> <span>Logout</span></a>
-        </div>
-    </aside>
+    </div>
 
-    <main class="main-content">
-        <header class="main-header">
-            <div class="header-left">
-                 <button class="btn d-lg-none me-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas" aria-controls="sidebarOffcanvas">
-                    <i class="fas fa-bars"></i>
-                </button>
-                <div>
-                    <h1>Laporan Penjualan</h1>
-                    <p>Ringkasan aktivitas dan performa bisnis Anda.</p>
-                </div>
-            </div>
-            <div class="header-right">
-                <div class="d-flex align-items-center">
-                    <i class="fas fa-calendar-alt me-2"></i>
-                    <input type="date" class="form-control form-control-sm me-2" value="2025-10-01">
-                    <span>-</span>
-                    <input type="date" class="form-control form-control-sm ms-2" value="2025-10-15">
-                </div>
-            </div>
-        </header>
-
-        <div class="row">
-            <div class="col-md-6 col-lg-3 mb-4">
-                <div class="card summary-card h-100">
-                    <div class="card-body d-flex align-items-center">
-                        <div class="summary-icon bg-primary text-white"><i class="fas fa-dollar-sign"></i></div>
-                        <div class="ms-3">
-                            <h6 class="card-title text-muted mb-1">Pendapatan Hari Ini</h6>
-                            <h4 class="card-text">Rp 1.250.000</h4>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6 col-lg-3 mb-4">
-                 <div class="card summary-card h-100">
-                    <div class="card-body d-flex align-items-center">
-                        <div class="summary-icon bg-info text-white"><i class="fas fa-receipt"></i></div>
-                        <div class="ms-3">
-                            <h6 class="card-title text-muted mb-1">Pesanan Hari Ini</h6>
-                            <h4 class="card-text">32 Pesanan</h4>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6 col-lg-3 mb-4">
-                 <div class="card summary-card h-100">
-                    <div class="card-body d-flex align-items-center">
-                        <div class="summary-icon bg-success text-white"><i class="fas fa-utensils"></i></div>
-                        <div class="ms-3">
-                            <h6 class="card-title text-muted mb-1">Menu Terlaris</h6>
-                            <h4 class="card-text">Lobster Balado</h4>
-                        </div>
-                    </div>
-                </div>
-            </div>
-             <div class="col-md-6 col-lg-3 mb-4">
-                 <div class="card summary-card h-100">
-                    <div class="card-body d-flex align-items-center">
-                        <div class="summary-icon bg-warning text-dark"><i class="fas fa-users"></i></div>
-                        <div class="ms-3">
-                            <h6 class="card-title text-muted mb-1">Pelanggan Baru</h6>
-                            <h4 class="card-text">5 Orang</h4>
-                        </div>
-                    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card summary-card h-100 border-start border-4 border-primary">
+            <div class="card-body d-flex align-items-center">
+                <div class="summary-icon bg-light text-primary"><i class="fas fa-utensils"></i></div>
+                <div class="ms-3">
+                    <h6 class="card-title text-muted mb-1">Total Menu Aktif</h6>
+                    <h4 class="card-text"><?= $total_menu ?> Item</h4>
                 </div>
             </div>
         </div>
+    </div>
 
-        <div class="row">
-            <div class="col-lg-7 mb-4">
-                <div class="card h-100">
-                    <div class="card-header">
-                        Grafik Penjualan Harian
-                    </div>
-                    <div class="card-body">
-                        <div class="chart-container">
-                             <canvas id="salesChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-5 mb-4">
-                <div class="card h-100">
-                     <div class="card-header">
-                        Transaksi Terakhir
-                    </div>
-                    <div class="card-body p-0">
-                        <div class="table-responsive">
-                             <table class="table table-hover align-middle mb-0">
-                                <tbody>
-                                    <tr>
-                                        <td>Siti Aminah</td>
-                                        <td>Meja 02</td>
-                                        <td><strong>Rp 175.000</strong></td>
-                                        <td><span class="badge bg-success">Lunas</span></td>
-                                    </tr>
-                                     <tr>
-                                        <td>Eko Wijoyo</td>
-                                        <td>Meja 05</td>
-                                        <td><strong>Rp 85.000</strong></td>
-                                        <td><span class="badge bg-success">Lunas</span></td>
-                                    </tr>
-                                     <tr>
-                                        <td>Rina Marlina</td>
-                                        <td>Take Away</td>
-                                        <td><strong>Rp 25.000</strong></td>
-                                        <td><span class="badge bg-warning text-dark">Pending</span></td>
-                                    </tr>
-                                </tbody>
-                             </table>
-                        </div>
-                    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card summary-card h-100 border-start border-4 border-success">
+            <div class="card-body d-flex align-items-center">
+                <div class="summary-icon bg-light text-success"><i class="fas fa-chair"></i></div>
+                <div class="ms-3">
+                    <h6 class="card-title text-muted mb-1">Meja Terdaftar</h6>
+                    <h4 class="card-text"><?= $total_meja ?> Meja</h4>
                 </div>
             </div>
         </div>
-    </main>
+    </div>
+
+    <div class="col-md-4 mb-4">
+        <div class="card summary-card h-100 border-start border-4 border-warning">
+            <div class="card-body d-flex align-items-center">
+                <div class="summary-icon bg-light text-warning"><i class="fas fa-clock"></i></div>
+                <div class="ms-3">
+                    <h6 class="card-title text-muted mb-1">Status Sistem</h6>
+                    <h4 class="card-text text-success">Online</h4>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
+<div class="card mb-4">
+    <div class="card-header bg-white py-3">
+        <h6 class="m-0 font-weight-bold text-primary">Statistik Penjualan (Segera Hadir)</h6>
+    </div>
+    <div class="card-body text-center py-5 text-muted">
+        <i class="fas fa-chart-area fa-3x mb-3 text-gray-300"></i>
+        <p>Data transaksi belum tersedia. Silakan lakukan pemesanan via QR Code.</p>
+    </div>
+</div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="../assets/js/admin_laporan.js"></script>
-</body>
-</html>
+<?php include '../layouts/admin/footer.php'; ?>

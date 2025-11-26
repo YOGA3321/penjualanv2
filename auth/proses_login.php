@@ -36,8 +36,20 @@ if ($result->num_rows > 0) {
         
         // Logika Nama Cabang
         if ($row['level'] == 'admin') {
-            $_SESSION['cabang_name'] = "Cabang Pusat";
+            // 1. Cari Cabang yang ditandai sebagai PUSAT di database
+            $cek_pusat = $koneksi->query("SELECT id, nama_cabang FROM cabang WHERE is_pusat = 1 LIMIT 1");
+            
+            if ($cek_pusat->num_rows > 0) {
+                // Jika ada cabang pusat (misal: Surabaya), set sebagai default view
+                $pusat = $cek_pusat->fetch_assoc();
+                $_SESSION['view_cabang_id'] = $pusat['id']; // Auto-switch ke Surabaya
+                $_SESSION['cabang_name'] = $pusat['nama_cabang'];
+            } else {
+                // Jika tidak ada settingan pusat, kembali ke mode Global
+                $_SESSION['cabang_name'] = "Cabang Pusat (Global)";
+            }
         } else {
+            // Jika Karyawan, sesuai database user
             $_SESSION['cabang_name'] = $row['nama_cabang'] ?? 'Cabang Tidak Diketahui';
         }
 

@@ -1,78 +1,135 @@
 <?php
-// admin/menu.php
+session_start();
+// 1. CEK LOGIN
+if (!isset($_SESSION['user_id'])) { header("Location: ../login"); exit; }
+
 require_once '../auth/koneksi.php';
 
 $page_title = "Manajemen Menu";
 $active_menu = "menu";
 
-// --- 1. HANDLE INPUT KATEGORI JIKA KOSONG ---
-// Kita cek apakah ada kategori, kalau tidak ada, buat dummy agar tidak error saat insert menu
-$cek_kat = $koneksi->query("SELECT COUNT(*) as total FROM kategori_menu")->fetch_assoc();
-if ($cek_kat['total'] == 0) {
-    $koneksi->query("INSERT INTO kategori_menu (nama_kategori) VALUES ('Makanan Berat'), ('Minuman'), ('Cemilan')");
+$cabang_id = $_SESSION['cabang_id'] ?? 0;
+$level = $_SESSION['level'] ?? '';
+
+if ($level == 'admin' && isset($_SESSION['view_cabang_id'])) {
+    $cabang_id = $_SESSION['view_cabang_id'];
 }
 
-// --- 2. LOGIKA TAMBAH MENU ---
+// --- TAMBAH MENU ---
 if (isset($_POST['tambah_menu'])) {
-    $nama = $_POST['nama_menu'];
+    $nama = htmlspecialchars($_POST['nama_menu']);
     $kat  = $_POST['kategori_id'];
     $harga= $_POST['harga'];
     $stok = $_POST['stok'];
-    $desc = $_POST['deskripsi'];
+    $desc = htmlspecialchars($_POST['deskripsi']);
     
-    // Upload Gambar
-    $gambarName = null;
-    if (!empty($_FILES['gambar']['name'])) {
-        $target_dir = "../assets/images/menu/";
-        // Buat folder jika belum ada
-        if (!is_dir($target_dir)) mkdir($target_dir, 0777, true);
+    if ($harga < 0 || $stok < 0) {
+        $_SESSION['swal'] = ['icon' => 'error', 'title' => 'Gagal', 'text' => 'Harga dan Stok tidak boleh minus!'];
+    } else {
+        $target_cabang = $cabang_id;
+        if ($level == 'admin' && !empty($_POST['cabang_override'])) {
+            $target_cabang = $_POST['cabang_override'];
+        }
+        if ($target_cabang == 0 || $target_cabang == '0') { $target_cabang = NULL; }
+
+        $gambarName = null;
+        if (!empty($_FILES['gambar']['name'])) {
+            $target_dir = "../assets/images/menu/";
+            if (!is_dir($target_dir)) mkdir($target_dir, 0777, true);
+            $ext = strtolower(pathinfo($_FILES['gambar']['name'], PATHINFO_EXTENSION));
+            $newName = uniqid() . "." . $ext;
+            if (move_uploaded_file($_FILES['gambar']['tmp_name'], $target_dir . $newName)) {
+                $gambarName = "assets/images/menu/" . $newName;
+            }
+        }
+
+        $stmt = $koneksi->prepare("INSERT INTO menu (cabang_id, kategori_id, nama_menu, deskripsi, harga, stok, gambar) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("iissiis", $target_cabang, $kat, $nama, $desc, $harga, $stok, $gambarName);
         
-        $ext = strtolower(pathinfo($_FILES['gambar']['name'], PATHINFO_EXTENSION));
-        $newName = uniqid() . "." . $ext; // Nama file unik
-        $target_file = $target_dir . $newName;
-        
-        if (move_uploaded_file($_FILES['gambar']['tmp_name'], $target_file)) {
-            $gambarName = "assets/images/menu/" . $newName; // Simpan path relatif
+        if ($stmt->execute()) {
+            $_SESSION['swal'] = ['icon' => 'success', 'title' => 'Berhasil', 'text' => 'Menu berhasil ditambahkan!'];
+        } else {
+            $_SESSION['swal'] = ['icon' => 'error', 'title' => 'Gagal', 'text' => $stmt->error];
         }
     }
-
-    $stmt = $koneksi->prepare("INSERT INTO menu (kategori_id, nama_menu, deskripsi, harga, stok, gambar) VALUES (?, ?, ?, ?, ?, ?)");
-    $stmt->bind_param("issiis", $kat, $nama, $desc, $harga, $stok, $gambarName);
-    
-    if ($stmt->execute()) $sukses = "Menu berhasil ditambahkan!";
-    else $error = "Gagal: " . $koneksi->error;
+    header("Location: menu"); exit;
 }
 
-// --- 3. LOGIKA HAPUS ---
+// --- EDIT MENU (BARU) ---
+if (isset($_POST['edit_menu'])) {
+    $id = $_POST['edit_id'];
+    $nama = htmlspecialchars($_POST['edit_nama']);
+    $kat  = $_POST['edit_kategori_id'];
+    $harga= $_POST['edit_harga'];
+    $stok = $_POST['edit_stok'];
+    $desc = htmlspecialchars($_POST['edit_deskripsi']);
+
+    if ($harga < 0 || $stok < 0) {
+        $_SESSION['swal'] = ['icon' => 'error', 'title' => 'Gagal', 'text' => 'Harga dan Stok tidak boleh minus!'];
+    } else {
+        if (!empty($_FILES['edit_gambar']['name'])) {
+            // Ganti Foto
+            $old = $koneksi->query("SELECT gambar FROM menu WHERE id='$id'")->fetch_assoc();
+            if ($old['gambar'] && file_exists("../" . $old['gambar'])) unlink("../" . $old['gambar']);
+
+            $target_dir = "../assets/images/menu/";
+            $ext = strtolower(pathinfo($_FILES['edit_gambar']['name'], PATHINFO_EXTENSION));
+            $newName = uniqid() . "." . $ext;
+            move_uploaded_file($_FILES['edit_gambar']['tmp_name'], $target_dir . $newName);
+            $gambarName = "assets/images/menu/" . $newName;
+
+            $stmt = $koneksi->prepare("UPDATE menu SET nama_menu=?, kategori_id=?, harga=?, stok=?, deskripsi=?, gambar=? WHERE id=?");
+            $stmt->bind_param("siiissi", $nama, $kat, $harga, $stok, $desc, $gambarName, $id);
+        } else {
+            // Tanpa Ganti Foto
+            $stmt = $koneksi->prepare("UPDATE menu SET nama_menu=?, kategori_id=?, harga=?, stok=?, deskripsi=? WHERE id=?");
+            $stmt->bind_param("siiisi", $nama, $kat, $harga, $stok, $desc, $id);
+        }
+
+        if ($stmt->execute()) {
+            $_SESSION['swal'] = ['icon' => 'success', 'title' => 'Berhasil', 'text' => 'Menu diperbarui!'];
+        } else {
+            $_SESSION['swal'] = ['icon' => 'error', 'title' => 'Gagal', 'text' => $stmt->error];
+        }
+    }
+    header("Location: menu"); exit;
+}
+
+// --- DELETE ---
 if (isset($_GET['hapus'])) {
     $id = $_GET['hapus'];
-    // Hapus file gambar lama jika ada
     $old = $koneksi->query("SELECT gambar FROM menu WHERE id='$id'")->fetch_assoc();
-    if ($old['gambar'] && file_exists("../" . $old['gambar'])) {
-        unlink("../" . $old['gambar']);
-    }
-    
+    if ($old['gambar'] && file_exists("../" . $old['gambar'])) unlink("../" . $old['gambar']);
     $koneksi->query("DELETE FROM menu WHERE id='$id'");
-    header("Location: menu");
-    exit;
+    $_SESSION['swal'] = ['icon' => 'success', 'title' => 'Terhapus', 'text' => 'Menu berhasil dihapus!'];
+    header("Location: menu"); exit;
 }
 
-// AMBIL DATA
-$menus = $koneksi->query("SELECT menu.*, kategori_menu.nama_kategori 
-                          FROM menu 
-                          LEFT JOIN kategori_menu ON menu.kategori_id = kategori_menu.id 
-                          ORDER BY menu.id DESC");
-$kategoris = $koneksi->query("SELECT * FROM kategori_menu");
+// --- QUERY DATA ---
+$sql_menu = "SELECT m.*, k.nama_kategori, c.nama_cabang 
+             FROM menu m 
+             LEFT JOIN kategori_menu k ON m.kategori_id = k.id 
+             LEFT JOIN cabang c ON m.cabang_id = c.id";
 
-$header_action_btn = '
-<button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#menuModal">
-    <i class="fas fa-plus me-2"></i>Tambah Menu
-</button>';
+if ($level != 'admin' || isset($_SESSION['view_cabang_id'])) {
+    $sql_menu .= " WHERE (m.cabang_id = '$cabang_id' OR m.cabang_id IS NULL)";
+}
+$sql_menu .= " ORDER BY m.id DESC";
+$menus = $koneksi->query($sql_menu);
+
+// --- DROPDOWN KATEGORI ---
+$sql_kat = "SELECT * FROM kategori_menu";
+if ($level != 'admin' || isset($_SESSION['view_cabang_id'])) {
+    $sql_kat .= " WHERE (cabang_id = '$cabang_id' OR cabang_id IS NULL)";
+}
+$kategoris = $koneksi->query($sql_kat);
+
+if ($level == 'admin') { $list_cabang = $koneksi->query("SELECT * FROM cabang"); }
+
+$header_action_btn = '<button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#menuModal"><i class="fas fa-plus me-2"></i>Tambah Menu</button>';
 
 include '../layouts/admin/header.php';
 ?>
-
-<?php if(isset($sukses)): ?><div class="alert alert-success"><?= $sukses ?></div><?php endif; ?>
 
 <div class="card border-0 shadow-sm">
     <div class="card-body">
@@ -81,33 +138,39 @@ include '../layouts/admin/header.php';
                 <thead class="table-light">
                     <tr>
                         <th>Foto</th>
-                        <th>Nama Menu</th>
+                        <th>Menu</th>
                         <th>Kategori</th>
                         <th>Harga</th>
                         <th>Stok</th>
-                        <th class="text-end">Aksi</th>
+                        <?php if($level == 'admin'): ?><th>Cabang</th><?php endif; ?>
+                        <th>Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php while($m = $menus->fetch_assoc()): ?>
                     <tr>
                         <td>
-                            <?php if($m['gambar']): ?>
-                                <img src="../<?= $m['gambar'] ?>" class="rounded" width="50" height="50" style="object-fit:cover;">
-                            <?php else: ?>
-                                <div class="bg-light rounded d-flex align-items-center justify-content-center" style="width:50px; height:50px;"><i class="fas fa-image text-muted"></i></div>
-                            <?php endif; ?>
+                            <?php if($m['gambar']): ?><img src="../<?= $m['gambar'] ?>" class="rounded" width="50" height="50" style="object-fit:cover;"><?php endif; ?>
                         </td>
-                        <td class="fw-bold"><?= $m['nama_menu'] ?></td>
-                        <td><span class="badge bg-secondary"><?= $m['nama_kategori'] ?></span></td>
-                        <td>Rp <?= number_format($m['harga'], 0, ',', '.') ?></td>
+                        <td><?= $m['nama_menu'] ?></td>
+                        <td><span class="badge bg-light text-dark border"><?= $m['nama_kategori'] ?></span></td>
+                        <td>Rp <?= number_format($m['harga']) ?></td>
+                        <td><?= $m['stok'] ?></td>
+                        <?php if($level == 'admin'): ?>
+                            <td><?= !empty($m['nama_cabang']) ? $m['nama_cabang'] : '<span class="badge bg-secondary">Global</span>' ?></td>
+                        <?php endif; ?>
                         <td>
-                            <span class="badge <?= $m['stok'] > 5 ? 'bg-success' : 'bg-warning' ?>">
-                                <?= $m['stok'] ?>
-                            </span>
-                        </td>
-                        <td class="text-end">
-                            <a href="?hapus=<?= $m['id'] ?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('Hapus menu ini?')"><i class="fas fa-trash"></i></a>
+                            <button class="btn btn-sm btn-outline-primary me-1 btn-edit-menu" 
+                                    data-bs-toggle="modal" data-bs-target="#editMenuModal"
+                                    data-id="<?= $m['id'] ?>"
+                                    data-nama="<?= htmlspecialchars($m['nama_menu']) ?>"
+                                    data-kategori="<?= $m['kategori_id'] ?>"
+                                    data-harga="<?= $m['harga'] ?>"
+                                    data-stok="<?= $m['stok'] ?>"
+                                    data-deskripsi="<?= htmlspecialchars($m['deskripsi']) ?>">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <a href="javascript:void(0);" onclick="confirmDelete('<?= $m['id'] ?>')" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></a>
                         </td>
                     </tr>
                     <?php endwhile; ?>
@@ -123,31 +186,104 @@ include '../layouts/admin/header.php';
             <form method="POST" enctype="multipart/form-data">
                 <div class="modal-header"><h5 class="modal-title">Tambah Menu</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
                 <div class="modal-body">
-                    <div class="mb-3"><label class="form-label">Nama Menu</label><input type="text" name="nama_menu" class="form-control" required></div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3"><label class="form-label">Harga (Rp)</label><input type="number" name="harga" class="form-control" required></div>
-                        <div class="col-md-6 mb-3"><label class="form-label">Stok Awal</label><input type="number" name="stok" class="form-control" value="100" required></div>
-                    </div>
+                    <div class="mb-3"><label>Nama Menu</label><input type="text" name="nama_menu" class="form-control" required></div>
                     <div class="mb-3">
-                        <label class="form-label">Kategori</label>
+                        <label>Kategori</label>
                         <select name="kategori_id" class="form-select" required>
-                            <?php 
-                            $kategoris->data_seek(0);
-                            while($k = $kategoris->fetch_assoc()): 
-                            ?>
-                                <option value="<?= $k['id'] ?>"><?= $k['nama_kategori'] ?></option>
+                            <option value="">Pilih Kategori...</option>
+                            <?php $kategoris->data_seek(0); while($k = $kategoris->fetch_assoc()): ?>
+                                <option value="<?= $k['id'] ?>"><?= $k['nama_kategori'] ?> <?= is_null($k['cabang_id']) ? '(Global)' : '' ?></option>
                             <?php endwhile; ?>
                         </select>
                     </div>
-                    <div class="mb-3"><label class="form-label">Foto Menu</label><input type="file" name="gambar" class="form-control" accept="image/*"></div>
-                    <div class="mb-3"><label class="form-label">Deskripsi Singkat</label><textarea name="deskripsi" class="form-control" rows="2"></textarea></div>
+                    <div class="row">
+                        <div class="col-6 mb-3"><label>Harga</label><input type="number" name="harga" class="form-control" min="0" required></div>
+                        <div class="col-6 mb-3"><label>Stok</label><input type="number" name="stok" class="form-control" min="0" required></div>
+                    </div>
+                    <div class="mb-3"><label>Foto</label><input type="file" name="gambar" class="form-control"></div>
+                    <div class="mb-3"><label>Deskripsi</label><textarea name="deskripsi" class="form-control" rows="2"></textarea></div>
+                    
+                    <?php if($level == 'admin'): ?>
+                    <div class="mb-3 bg-light p-3 rounded">
+                        <label class="small text-muted fw-bold">Simpan ke (Opsional)</label>
+                        <select name="cabang_override" class="form-select form-select-sm">
+                            <option value="">Global / Pusat (Semua Cabang)</option>
+                            <?php 
+                            if(isset($list_cabang)){
+                                $list_cabang->data_seek(0); 
+                                while($c = $list_cabang->fetch_assoc()): 
+                            ?>
+                                <option value="<?= $c['id'] ?>" <?= ($cabang_id == $c['id']) ? 'selected' : '' ?>>
+                                    <?= $c['nama_cabang'] ?>
+                                </option>
+                            <?php endwhile; } ?>
+                        </select>
+                    </div>
+                    <?php endif; ?>
                 </div>
-                <div class="modal-footer">
-                    <button type="submit" name="tambah_menu" class="btn btn-primary">Simpan</button>
-                </div>
+                <div class="modal-footer"><button type="submit" name="tambah_menu" class="btn btn-primary">Simpan</button></div>
             </form>
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="editMenuModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" enctype="multipart/form-data">
+                <div class="modal-header"><h5 class="modal-title">Edit Menu</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <input type="hidden" name="edit_id" id="edit_id">
+                    <div class="mb-3"><label>Nama Menu</label><input type="text" name="edit_nama" id="edit_nama" class="form-control" required></div>
+                    <div class="mb-3">
+                        <label>Kategori</label>
+                        <select name="edit_kategori_id" id="edit_kategori_id" class="form-select" required>
+                            <option value="">Pilih Kategori...</option>
+                            <?php $kategoris->data_seek(0); while($k = $kategoris->fetch_assoc()): ?>
+                                <option value="<?= $k['id'] ?>"><?= $k['nama_kategori'] ?></option>
+                            <?php endwhile; ?>
+                        </select>
+                    </div>
+                    <div class="row">
+                        <div class="col-6 mb-3"><label>Harga</label><input type="number" name="edit_harga" id="edit_harga" class="form-control" min="0" required></div>
+                        <div class="col-6 mb-3"><label>Stok</label><input type="number" name="edit_stok" id="edit_stok" class="form-control" min="0" required></div>
+                    </div>
+                    <div class="mb-3">
+                        <label>Ganti Foto (Opsional)</label>
+                        <input type="file" name="edit_gambar" class="form-control">
+                        <small class="text-muted">Biarkan kosong jika tidak ingin mengubah foto.</small>
+                    </div>
+                    <div class="mb-3"><label>Deskripsi</label><textarea name="edit_deskripsi" id="edit_deskripsi" class="form-control" rows="2"></textarea></div>
+                </div>
+                <div class="modal-footer"><button type="submit" name="edit_menu" class="btn btn-primary">Update</button></div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const editButtons = document.querySelectorAll('.btn-edit-menu');
+    editButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.getElementById('edit_id').value = this.getAttribute('data-id');
+            document.getElementById('edit_nama').value = this.getAttribute('data-nama');
+            document.getElementById('edit_kategori_id').value = this.getAttribute('data-kategori');
+            document.getElementById('edit_harga').value = this.getAttribute('data-harga');
+            document.getElementById('edit_stok').value = this.getAttribute('data-stok');
+            document.getElementById('edit_deskripsi').value = this.getAttribute('data-deskripsi');
+        });
+    });
+});
+
+function confirmDelete(id) {
+    Swal.fire({
+        title: 'Hapus Menu?', text: "Data tidak bisa dikembalikan!", icon: 'warning',
+        showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Ya, Hapus!'
+    }).then((result) => {
+        if (result.isConfirmed) { window.location.href = "?hapus=" + id; }
+    })
+}
+</script>
 
 <?php include '../layouts/admin/footer.php'; ?>
