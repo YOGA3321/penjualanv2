@@ -38,6 +38,64 @@
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="assets/js/login.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const loginForm = document.getElementById('ajax-login-form');
+        const loginButton = document.getElementById('login-button');
+        const togglePassword = document.getElementById('toggle-password');
+        const passwordInput = document.getElementById('password');
+
+        // Toggle Password
+        if (togglePassword && passwordInput) {
+            togglePassword.addEventListener('click', function() {
+                const icon = this.querySelector('i');
+                const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+                passwordInput.setAttribute('type', type);
+                icon.classList.toggle('fa-eye');
+                icon.classList.toggle('fa-eye-slash');
+            });
+        }
+
+        // Handle Submit
+        if (loginForm) {
+            loginForm.addEventListener('submit', function(event) {
+                event.preventDefault();
+                loginButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+                loginButton.disabled = true;
+
+                const formData = new FormData(this);
+
+                fetch('auth/proses_login.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Berhasil!',
+                            text: data.message,
+                            timer: 1500,
+                            showConfirmButton: false
+                        }).then(() => {
+                            window.location.href = data.redirect;
+                        });
+                    } else {
+                        Swal.fire({ icon: 'error', title: 'Gagal', text: data.message });
+                        loginButton.innerHTML = 'Masuk';
+                        loginButton.disabled = false;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    Swal.fire({ icon: 'error', title: 'Error', text: 'Terjadi kesalahan sistem.' });
+                    loginButton.innerHTML = 'Masuk';
+                    loginButton.disabled = false;
+                });
+            });
+        }
+    });
+    </script>
 </body>
 </html>

@@ -2,7 +2,7 @@
 $host = 'localhost';
 $db_user = 'root';
 $db_pass = '';     // Ganti dengan password database Anda
-$db_name = 'penjualanv2'; // Ganti dengan nama database Anda
+$db_name = 'penjualan2'; // Ganti dengan nama database Anda
 
 $koneksi = mysqli_connect($host, $db_user, $db_pass, $db_name);
 
