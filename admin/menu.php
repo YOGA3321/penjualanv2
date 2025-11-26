@@ -55,7 +55,7 @@ if (isset($_POST['tambah_menu'])) {
     header("Location: menu"); exit;
 }
 
-// --- EDIT MENU (BARU) ---
+// --- EDIT MENU ---
 if (isset($_POST['edit_menu'])) {
     $id = $_POST['edit_id'];
     $nama = htmlspecialchars($_POST['edit_nama']);
@@ -105,19 +105,7 @@ if (isset($_GET['hapus'])) {
     header("Location: menu"); exit;
 }
 
-// --- QUERY DATA ---
-$sql_menu = "SELECT m.*, k.nama_kategori, c.nama_cabang 
-             FROM menu m 
-             LEFT JOIN kategori_menu k ON m.kategori_id = k.id 
-             LEFT JOIN cabang c ON m.cabang_id = c.id";
-
-if ($level != 'admin' || isset($_SESSION['view_cabang_id'])) {
-    $sql_menu .= " WHERE (m.cabang_id = '$cabang_id' OR m.cabang_id IS NULL)";
-}
-$sql_menu .= " ORDER BY m.id DESC";
-$menus = $koneksi->query($sql_menu);
-
-// --- DROPDOWN KATEGORI ---
+// --- DATA PENDUKUNG (DROPDOWN) ---
 $sql_kat = "SELECT * FROM kategori_menu";
 if ($level != 'admin' || isset($_SESSION['view_cabang_id'])) {
     $sql_kat .= " WHERE (cabang_id = '$cabang_id' OR cabang_id IS NULL)";
@@ -146,34 +134,11 @@ include '../layouts/admin/header.php';
                         <th>Aksi</th>
                     </tr>
                 </thead>
-                <tbody>
-                    <?php while($m = $menus->fetch_assoc()): ?>
-                    <tr>
-                        <td>
-                            <?php if($m['gambar']): ?><img src="../<?= $m['gambar'] ?>" class="rounded" width="50" height="50" style="object-fit:cover;"><?php endif; ?>
-                        </td>
-                        <td><?= $m['nama_menu'] ?></td>
-                        <td><span class="badge bg-light text-dark border"><?= $m['nama_kategori'] ?></span></td>
-                        <td>Rp <?= number_format($m['harga']) ?></td>
-                        <td><?= $m['stok'] ?></td>
-                        <?php if($level == 'admin'): ?>
-                            <td><?= !empty($m['nama_cabang']) ? $m['nama_cabang'] : '<span class="badge bg-secondary">Global</span>' ?></td>
-                        <?php endif; ?>
-                        <td>
-                            <button class="btn btn-sm btn-outline-primary me-1 btn-edit-menu" 
-                                    data-bs-toggle="modal" data-bs-target="#editMenuModal"
-                                    data-id="<?= $m['id'] ?>"
-                                    data-nama="<?= htmlspecialchars($m['nama_menu']) ?>"
-                                    data-kategori="<?= $m['kategori_id'] ?>"
-                                    data-harga="<?= $m['harga'] ?>"
-                                    data-stok="<?= $m['stok'] ?>"
-                                    data-deskripsi="<?= htmlspecialchars($m['deskripsi']) ?>">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <a href="javascript:void(0);" onclick="confirmDelete('<?= $m['id'] ?>')" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></a>
-                        </td>
-                    </tr>
-                    <?php endwhile; ?>
+                <tbody id="menu-container">
+                    <tr><td colspan="7" class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-2 text-muted">Memuat data menu...</p>
+                    </td></tr>
                 </tbody>
             </table>
         </div>
@@ -192,7 +157,7 @@ include '../layouts/admin/header.php';
                         <select name="kategori_id" class="form-select" required>
                             <option value="">Pilih Kategori...</option>
                             <?php $kategoris->data_seek(0); while($k = $kategoris->fetch_assoc()): ?>
-                                <option value="<?= $k['id'] ?>"><?= $k['nama_kategori'] ?> <?= is_null($k['cabang_id']) ? '(Global)' : '' ?></option>
+                                <option value="<?= $k['id'] ?>"><?= $k['nama_kategori'] ?></option>
                             <?php endwhile; ?>
                         </select>
                     </div>
@@ -205,14 +170,10 @@ include '../layouts/admin/header.php';
                     
                     <?php if($level == 'admin'): ?>
                     <div class="mb-3 bg-light p-3 rounded">
-                        <label class="small text-muted fw-bold">Simpan ke (Opsional)</label>
+                        <label class="small text-muted fw-bold">Simpan ke Cabang (Opsional)</label>
                         <select name="cabang_override" class="form-select form-select-sm">
-                            <option value="">Global / Pusat (Semua Cabang)</option>
-                            <?php 
-                            if(isset($list_cabang)){
-                                $list_cabang->data_seek(0); 
-                                while($c = $list_cabang->fetch_assoc()): 
-                            ?>
+                            <option value="">Global / Pusat (Tampil di Semua Cabang)</option>
+                            <?php if(isset($list_cabang)) { $list_cabang->data_seek(0); while($c = $list_cabang->fetch_assoc()): ?>
                                 <option value="<?= $c['id'] ?>" <?= ($cabang_id == $c['id']) ? 'selected' : '' ?>>
                                     <?= $c['nama_cabang'] ?>
                                 </option>
@@ -251,7 +212,6 @@ include '../layouts/admin/header.php';
                     <div class="mb-3">
                         <label>Ganti Foto (Opsional)</label>
                         <input type="file" name="edit_gambar" class="form-control">
-                        <small class="text-muted">Biarkan kosong jika tidak ingin mengubah foto.</small>
                     </div>
                     <div class="mb-3"><label>Deskripsi</label><textarea name="edit_deskripsi" id="edit_deskripsi" class="form-control" rows="2"></textarea></div>
                 </div>
@@ -262,28 +222,97 @@ include '../layouts/admin/header.php';
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const editButtons = document.querySelectorAll('.btn-edit-menu');
-    editButtons.forEach(btn => {
-        btn.addEventListener('click', function() {
-            document.getElementById('edit_id').value = this.getAttribute('data-id');
-            document.getElementById('edit_nama').value = this.getAttribute('data-nama');
-            document.getElementById('edit_kategori_id').value = this.getAttribute('data-kategori');
-            document.getElementById('edit_harga').value = this.getAttribute('data-harga');
-            document.getElementById('edit_stok').value = this.getAttribute('data-stok');
-            document.getElementById('edit_deskripsi').value = this.getAttribute('data-deskripsi');
-        });
-    });
-});
+    let menuEventSource = null;
 
-function confirmDelete(id) {
-    Swal.fire({
-        title: 'Hapus Menu?', text: "Data tidak bisa dikembalikan!", icon: 'warning',
-        showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Ya, Hapus!'
-    }).then((result) => {
-        if (result.isConfirmed) { window.location.href = "?hapus=" + id; }
-    })
-}
+    function startMenuUpdates() {
+        if (menuEventSource) menuEventSource.close();
+
+        // Deteksi cabang yang sedang dilihat (untuk dikirim ke API)
+        const currentBranch = '<?= ($level=='admin' && !isset($_SESSION['view_cabang_id'])) ? 'pusat' : $cabang_id ?>';
+
+        // Buka koneksi SSE
+        menuEventSource = new EventSource(`api/sse_menu.php?view_cabang=${currentBranch}`);
+
+        menuEventSource.onmessage = function(event) {
+            const result = JSON.parse(event.data);
+            
+            if(result.status === 'success') {
+                const container = document.getElementById('menu-container');
+                let html = '';
+
+                if(result.data.length === 0) {
+                    html = `<tr><td colspan="7" class="text-center py-4 text-muted">Belum ada data menu.</td></tr>`;
+                } else {
+                    result.data.forEach(m => {
+                        // Format Harga Rp
+                        let hargaRp = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(m.harga);
+                        
+                        // Tampilan Foto
+                        let imgHtml = m.gambar 
+                            ? `<img src="../${m.gambar}" class="rounded" width="50" height="50" style="object-fit:cover;">`
+                            : `<div class="bg-light rounded d-flex align-items-center justify-content-center text-muted" style="width:50px; height:50px;"><i class="fas fa-image"></i></div>`;
+
+                        // Tampilan Cabang (Khusus Admin)
+                        let cabangHtml = '';
+                        <?php if($level == 'admin'): ?>
+                            let labelCabang = m.nama_cabang ? `<span class="badge bg-info">${m.nama_cabang}</span>` : `<span class="badge bg-secondary">Global</span>`;
+                            cabangHtml = `<td>${labelCabang}</td>`;
+                        <?php endif; ?>
+
+                        // Buat Baris Tabel
+                        html += `
+                        <tr>
+                            <td>${imgHtml}</td>
+                            <td class="fw-bold">${m.nama_menu}</td>
+                            <td><span class="badge bg-light text-dark border">${m.nama_kategori || '-'}</span></td>
+                            <td>${hargaRp}</td>
+                            <td><span class="badge ${m.stok > 5 ? 'bg-success' : 'bg-danger'}">${m.stok}</span></td>
+                            ${cabangHtml}
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary me-1" 
+                                    onclick='openEditModal(${JSON.stringify(m)})'>
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <a href="javascript:void(0);" onclick="confirmDelete('${m.id}')" class="btn btn-sm btn-outline-danger">
+                                    <i class="fas fa-trash"></i>
+                                </a>
+                            </td>
+                        </tr>`;
+                    });
+                }
+                container.innerHTML = html;
+            }
+        };
+        
+        menuEventSource.onerror = function() {
+            // Handle error silent reconnect
+        };
+    }
+
+    function openEditModal(menu) {
+        document.getElementById('edit_id').value = menu.id;
+        document.getElementById('edit_nama').value = menu.nama_menu;
+        document.getElementById('edit_kategori_id').value = menu.kategori_id;
+        document.getElementById('edit_harga').value = menu.harga;
+        document.getElementById('edit_stok').value = menu.stok;
+        document.getElementById('edit_deskripsi').value = menu.deskripsi;
+        
+        var myModal = new bootstrap.Modal(document.getElementById('editMenuModal'));
+        myModal.show();
+    }
+
+    function confirmDelete(id) {
+        Swal.fire({
+            title: 'Hapus Menu?', text: "Data tidak bisa dikembalikan!", icon: 'warning',
+            showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Ya, Hapus!'
+        }).then((result) => {
+            if (result.isConfirmed) { window.location.href = "?hapus=" + id; }
+        })
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        startMenuUpdates();
+    });
 </script>
 
 <?php include '../layouts/admin/footer.php'; ?>
