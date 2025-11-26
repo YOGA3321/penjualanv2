@@ -54,7 +54,7 @@ while (true) {
 
     $data = [];
     while ($row = $result->fetch_assoc()) {
-        $row['qr_url'] = "https://" . $_SERVER['HTTP_HOST'] . "/penjualanv2/penjualan/?token=" . $row['qr_token'];
+        $row['qr_url'] = BASE_URL . "/penjualan/?token=" . $row['qr_token'];
         $data[] = $row;
     }
 
