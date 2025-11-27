@@ -40,6 +40,10 @@ $active_menu = isset($active_menu) ? $active_menu : '';
                 <li class="<?= $active_menu == 'laporan' ? 'active' : '' ?>">
                     <a href="laporan"><i class="fas fa-chart-line fa-fw"></i> <span>Laporan</span></a>
                 </li>
+                <li class="<?= $active_menu == 'riwayat' ? 'active' : '' ?>">
+                    <a href="riwayat"><i class="fas fa-history fa-fw"></i> <span>Riwayat Transaksi</span></a>
+                </li>
+                
                 <li class="<?= $active_menu == 'menu' ? 'active' : '' ?>">
                     <a href="menu"><i class="fas fa-utensils fa-fw"></i> <span>Manajemen Menu</span></a>
                 </li>
@@ -48,20 +52,12 @@ $active_menu = isset($active_menu) ? $active_menu : '';
                 </li>
             </ul>
 
-            <?php if(isset($_SESSION['level']) && $_SESSION['level'] == 'admin'): ?>
-            <p class="sidebar-heading">Admin Pusat</p>
-            <ul>
-                <li class="<?= $active_menu == 'users' ? 'active' : '' ?>">
-                    <a href="users"><i class="fas fa-users fa-fw"></i> <span>Manajemen User</span></a>
-                </li>
-                <li class="<?= $active_menu == 'cabang' ? 'active' : '' ?>">
-                    <a href="cabang"><i class="fas fa-store fa-fw"></i> <span>Manajemen Cabang</span></a>
-                </li>
-            </ul>
-            <?php endif; ?>
-
             <p class="sidebar-heading">Operasional</p>
             <ul>
+                <li class="<?= $active_menu == 'order_manual' ? 'active' : '' ?>">
+                    <a href="order_manual"><i class="fas fa-tablet-alt fa-fw"></i> <span>Pesanan Manual</span></a>
+                </li>
+                
                 <li class="<?= $active_menu == 'meja' ? 'active' : '' ?>">
                     <a href="meja"><i class="fas fa-chair fa-fw"></i> <span>Manajemen Meja</span></a>
                 </li>
