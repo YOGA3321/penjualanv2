@@ -103,11 +103,52 @@ function hapusItem(index) {
 }
 
 function prosesBayar(metode) {
-    if(cart.length === 0) { alert('Pesanan kosong!'); return; }
+    if(cart.length === 0) { 
+        Swal.fire('Error', 'Pesanan masih kosong!', 'error'); 
+        return; 
+    }
     
-    // Kirim data ke API Checkout (Nanti kita buat)
-    // Gunakan Fetch API ke 'api/proses_transaksi.php'
-    alert("Proses pembayaran " + metode + " akan dibuat di tahap selanjutnya.");
+    // Siapkan Data
+    let total = cart.reduce((sum, item) => sum + (item.harga * item.qty), 0);
+    
+    let payload = {
+        meja_id: '<?= $_SESSION['kasir_meja_id'] ?>',
+        nama_pelanggan: '<?= $_SESSION['kasir_nama_pelanggan'] ?>',
+        total_harga: total,
+        metode: metode,
+        items: cart
+    };
+
+    // Loading State
+    Swal.fire({ title: 'Memproses...', didOpen: () => { Swal.showLoading() } });
+
+    // Kirim ke API
+    fetch('api/proses_transaksi_kasir.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if(data.status === 'success') {
+            Swal.fire({
+                icon: 'success',
+                title: 'Berhasil!',
+                text: 'Transaksi telah disimpan.',
+                timer: 2000,
+                showConfirmButton: false
+            }).then(() => {
+                // Redirect ke struk atau kembali ke order manual
+                window.location.href = 'riwayat.php'; 
+            });
+        } else {
+            Swal.fire('Gagal', data.message, 'error');
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        Swal.fire('Error', 'Terjadi kesalahan koneksi', 'error');
+    });
 }
 </script>
 

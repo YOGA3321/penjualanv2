@@ -1,4 +1,18 @@
 <!DOCTYPE html>
+<?php
+session_start();
+if (isset($_SESSION['user_id'])) {
+    // Jika Admin/Karyawan -> ke Admin
+    if ($_SESSION['level'] == 'admin' || $_SESSION['level'] == 'karyawan') {
+        header("Location: admin/");
+    } 
+    // Jika Pelanggan -> ke Menu
+    else {
+        header("Location: penjualan/");
+    }
+    exit;
+}
+?>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
