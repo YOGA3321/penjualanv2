@@ -3,85 +3,70 @@ session_start();
 if (!isset($_SESSION['user_id'])) { header("Location: ../login"); exit; }
 require_once '../auth/koneksi.php';
 
-$page_title = "Pesanan Manual";
-$active_menu = "order_manual"; // Penanda menu aktif
+$page_title = "Pesanan Manual (Kasir)";
+$active_menu = "order_manual";
 
-$user_cabang = $_SESSION['cabang_id'] ?? 0;
-$level = $_SESSION['level'] ?? '';
-
-// --- PROSES SET MEJA ---
-if (isset($_POST['mulai_pesan'])) {
+// --- PROSES LANJUT KE KASIR ---
+if (isset($_POST['mulai_kasir'])) {
     $meja_id = $_POST['meja_id'];
+    $nama_pelanggan = htmlspecialchars($_POST['nama_pelanggan']); // Input Nama Manual
     
-    // Ambil detail meja
-    $query = "SELECT meja.*, cabang.nama_cabang, cabang.id as id_cabang 
-              FROM meja 
-              JOIN cabang ON meja.cabang_id = cabang.id 
-              WHERE meja.id = '$meja_id'";
-              
-    $result = $koneksi->query($query);
+    // Validasi Meja
+    $cek = $koneksi->query("SELECT * FROM meja WHERE id = '$meja_id'")->fetch_assoc();
     
-    if ($result->num_rows > 0) {
-        $info = $result->fetch_assoc();
+    if ($cek) {
+        // Set Session Khusus Kasir
+        $_SESSION['kasir_meja_id'] = $meja_id;
+        $_SESSION['kasir_no_meja'] = $cek['nomor_meja'];
+        $_SESSION['kasir_nama_pelanggan'] = $nama_pelanggan;
+        $_SESSION['kasir_cabang_id'] = $cek['cabang_id']; // Penting utk filter menu
         
-        // SET SESSION SEBAGAI PELANGGAN
-        $_SESSION['plg_meja_id'] = $info['id'];
-        $_SESSION['plg_no_meja'] = $info['nomor_meja'];
-        $_SESSION['plg_cabang_id'] = $info['id_cabang'];
-        $_SESSION['plg_nama_cabang'] = $info['nama_cabang'];
-        
-        // Redirect ke Frontend Menu
-        header("Location: ../penjualan/"); 
+        // Redirect ke Halaman Kasir Utama
+        header("Location: kasir_transaksi.php"); 
         exit;
-    } else {
-        $_SESSION['swal'] = ['icon' => 'error', 'title' => 'Gagal', 'text' => 'Data meja tidak valid.'];
     }
 }
 
-// AMBIL LIST MEJA KOSONG
+// Ambil Meja Kosong sesuai cabang Admin/Karyawan
+$user_cabang = $_SESSION['cabang_id'] ?? 0;
+$level = $_SESSION['level'];
+
 $sql = "SELECT * FROM meja WHERE status = 'kosong'";
 if ($level != 'admin') {
     $sql .= " AND cabang_id = '$user_cabang'";
-} else {
-    // Jika admin sedang view cabang tertentu
-    if (isset($_SESSION['view_cabang_id'])) {
-        $view_id = $_SESSION['view_cabang_id'];
-        $sql .= " AND cabang_id = '$view_id'";
-    }
+} elseif (isset($_SESSION['view_cabang_id'])) {
+    $sql .= " AND cabang_id = '".$_SESSION['view_cabang_id']."'";
 }
-$sql .= " ORDER BY CAST(nomor_meja AS UNSIGNED) ASC";
 $meja_list = $koneksi->query($sql);
 
 include '../layouts/admin/header.php';
 ?>
 
 <div class="row justify-content-center">
-    <div class="col-md-6 col-lg-5">
+    <div class="col-md-6">
         <div class="card border-0 shadow-sm mt-4">
-            <div class="card-body p-4 text-center">
-                <div class="mb-4 text-primary">
-                    <i class="fas fa-cash-register fa-4x"></i>
-                </div>
-                <h4 class="fw-bold">Mode Kasir / Pesanan Manual</h4>
-                <p class="text-muted mb-4">Pilih meja untuk membantu pelanggan melakukan pemesanan tanpa scan QR.</p>
-                
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-cash-register me-2"></i>Mulai Transaksi Baru</h5>
+            </div>
+            <div class="card-body p-4">
                 <form method="POST">
-                    <div class="form-floating mb-3 text-start">
-                        <select name="meja_id" class="form-select" id="selectMeja" required>
-                            <option value="" selected disabled>Pilih salah satu...</option>
-                            <?php if($meja_list->num_rows > 0): ?>
-                                <?php while($m = $meja_list->fetch_assoc()): ?>
-                                    <option value="<?= $m['id'] ?>">Meja <?= $m['nomor_meja'] ?></option>
-                                <?php endwhile; ?>
-                            <?php else: ?>
-                                <option disabled>Semua meja penuh / Tidak ada data</option>
-                            <?php endif; ?>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Nama Pelanggan</label>
+                        <input type="text" name="nama_pelanggan" class="form-control" placeholder="Cth: Bapak Budi / Non-Member" required>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Pilih Meja</label>
+                        <select name="meja_id" class="form-select" required>
+                            <option value="" selected disabled>-- Pilih Meja Kosong --</option>
+                            <?php while($m = $meja_list->fetch_assoc()): ?>
+                                <option value="<?= $m['id'] ?>">Meja <?= $m['nomor_meja'] ?></option>
+                            <?php endwhile; ?>
                         </select>
-                        <label for="selectMeja">Pilih Meja Kosong</label>
                     </div>
                     
-                    <button type="submit" name="mulai_pesan" class="btn btn-primary w-100 py-2 fw-bold">
-                        <i class="fas fa-utensils me-2"></i> Buka Menu Pemesanan
+                    <button type="submit" name="mulai_kasir" class="btn btn-primary w-100 py-2 fw-bold">
+                        Lanjut ke Menu & Pembayaran <i class="fas fa-arrow-right ms-2"></i>
                     </button>
                 </form>
             </div>

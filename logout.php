@@ -1,20 +1,19 @@
 <?php
-session_start(); // Wajib ada di paling atas
+session_start();
 
-// Hapus token Google jika ada
-if (isset($_SESSION['access_token'])) {
+// Cek apakah file vendor ada. Jika tidak ada, lewati fungsi Google Revoke
+if (file_exists('vendor/autoload.php') && isset($_SESSION['access_token'])) {
     require_once 'vendor/autoload.php';
-    $client = new Google_Client();
-    $client->revokeToken($_SESSION['access_token']);
+    try {
+        $client = new Google_Client();
+        $client->revokeToken($_SESSION['access_token']);
+    } catch (Exception $e) {
+        // Biarkan error google diam, jangan crash aplikasi
+    }
 }
 
-// Hapus semua variabel session
 session_unset();
-
-// Hancurkan session
 session_destroy();
-
-// Redirect ke halaman login
 header("Location: login");
 exit;
 ?>
