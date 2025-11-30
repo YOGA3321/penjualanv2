@@ -23,6 +23,18 @@ $nama_pelanggan = $data['nama_pelanggan'];
 $total_harga = $data['total_harga'];
 $items = $data['items'];
 $metode = $data['metode']; // 'tunai' atau 'midtrans'
+// Ambil input tambahan
+$uang_bayar = $data['uang_bayar'] ?? 0;
+$kembalian = $data['kembalian'] ?? 0;
+
+// Status
+// Jika Tunai Kasir -> Langsung Settlement -> Langsung Diproses Dapur
+$status_bayar = ($metode == 'tunai') ? 'settlement' : 'pending';
+$status_pesanan = 'diproses'; 
+
+// Insert
+$stmt = $koneksi->prepare("INSERT INTO transaksi (uuid, meja_id, nama_pelanggan, total_harga, uang_bayar, kembalian, status_pembayaran, metode_pembayaran, status_pesanan) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+$stmt->bind_param("sisdddsss", $uuid, $meja_id, $nama_pelanggan, $total_harga, $uang_bayar, $kembalian, $status_bayar, $metode, $status_pesanan);
 
 // 2. Generate UUID
 $uuid = sprintf('%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
