@@ -57,7 +57,9 @@ $active_menu = isset($active_menu) ? $active_menu : '';
                 <li class="<?= $active_menu == 'order_manual' ? 'active' : '' ?>">
                     <a href="order_manual"><i class="fas fa-tablet-alt fa-fw"></i> <span>Pesanan Manual</span></a>
                 </li>
-                
+                <li class="<?= $active_menu == 'dapur' ? 'active' : '' ?>">
+                    <a href="dapur"><i class="fas fa-fire fa-fw"></i> <span>Monitor Dapur</span></a>
+                </li>
                 <li class="<?= $active_menu == 'meja' ? 'active' : '' ?>">
                     <a href="meja"><i class="fas fa-chair fa-fw"></i> <span>Manajemen Meja</span></a>
                 </li>

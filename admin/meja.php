@@ -1,10 +1,6 @@
 <?php
 session_start();
-// 1. CEK LOGIN (KEAMANAN)
-if (!isset($_SESSION['user_id'])) {
-    header("Location: ../login");
-    exit;
-}
+if (!isset($_SESSION['user_id'])) { header("Location: ../login"); exit; }
 
 require_once '../auth/koneksi.php';
 
@@ -13,8 +9,7 @@ $active_menu = "meja";
 $level = $_SESSION['level'] ?? '';
 $user_cabang = $_SESSION['cabang_id'] ?? 0;
 
-// --- LOGIKA GENERATE MEJA (BULK INSERT) ---
-// Kita tetap pakai POST biasa untuk aksi tambah/hapus karena hanya sesekali
+// --- LOGIKA GENERATE MEJA ---
 if (isset($_POST['tambah_meja'])) {
     $jumlah_generate = (int)$_POST['jumlah_meja']; 
     $cabang_target = ($level == 'admin') ? $_POST['cabang_id'] : $user_cabang;
@@ -22,7 +17,6 @@ if (isset($_POST['tambah_meja'])) {
     if ($jumlah_generate < 1) {
          $_SESSION['swal'] = ['icon' => 'error', 'title' => 'Gagal', 'text' => 'Jumlah minimal 1!'];
     } else {
-        // Cari nomor terakhir
         $query_max = $koneksi->query("SELECT MAX(CAST(nomor_meja AS UNSIGNED)) as max_no FROM meja WHERE cabang_id = '$cabang_target'");
         $row_max = $query_max->fetch_assoc();
         $last_number = ($row_max['max_no'] == null) ? 0 : (int)$row_max['max_no'];
@@ -49,14 +43,21 @@ if (isset($_POST['tambah_meja'])) {
 // --- DELETE ---
 if (isset($_GET['hapus'])) {
     $id_hapus = $_GET['hapus'];
-    $koneksi->query("DELETE FROM meja WHERE id = '$id_hapus'");
-    $_SESSION['swal'] = ['icon' => 'success', 'title' => 'Terhapus', 'text' => 'Data meja dihapus.'];
+    
+    // Validasi: Cek apakah meja sedang terisi
+    $cek = $koneksi->query("SELECT status FROM meja WHERE id = '$id_hapus'")->fetch_assoc();
+    
+    if ($cek['status'] == 'terisi') {
+        $_SESSION['swal'] = ['icon' => 'error', 'title' => 'Ditolak', 'text' => 'Meja sedang digunakan! Kosongkan dulu.'];
+    } else {
+        $koneksi->query("DELETE FROM meja WHERE id = '$id_hapus'");
+        $_SESSION['swal'] = ['icon' => 'success', 'title' => 'Terhapus', 'text' => 'Data meja dihapus.'];
+    }
     header("Location: meja"); exit;
 }
 
-// Ambil Data Cabang untuk Dropdown Filter Admin
+// Data Cabang
 $cabangs = $koneksi->query("SELECT * FROM cabang");
-
 $header_action_btn = '<button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#mejaModal"><i class="fas fa-plus me-2"></i>Generate Meja</button>';
 
 include '../layouts/admin/header.php';
@@ -76,36 +77,28 @@ include '../layouts/admin/header.php';
              <span class="text-muted"><i class="fas fa-info-circle me-2"></i>Menampilkan meja untuk <strong><?= $_SESSION['cabang_name'] ?></strong></span>
              <input type="hidden" id="filterCabang" value="<?= $user_cabang ?>">
          <?php endif; ?>
-         
-         <div class="ms-auto small">
-             Status: <span id="connectionStatus" class="badge bg-secondary">Connecting...</span>
-         </div>
     </div>
 </div>
 
 <div class="row" id="meja-container">
     <div class="col-12 text-center py-5">
-        <div class="spinner-border text-primary" role="status">
-            <span class="visually-hidden">Loading...</span>
-        </div>
+        <div class="spinner-border text-primary" role="status"></div>
         <p class="mt-2 text-muted">Menghubungkan ke server...</p>
     </div>
 </div>
 
-<div class="modal fade" id="mejaModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="mejaModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <form method="POST">
-                <div class="modal-header"><h5 class="modal-title">Generate Meja Otomatis</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-header"><h5 class="modal-title">Generate Meja</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label fw-bold text-primary">Generate Otomatis</label>
+                        <label class="form-label fw-bold text-primary">Jumlah Meja</label>
                         <div class="input-group">
-                             <span class="input-group-text">Tambahkan</span>
                              <input type="number" name="jumlah_meja" class="form-control text-center" value="1" min="1" max="50" required>
-                             <span class="input-group-text">Meja Baru</span>
+                             <span class="input-group-text">Unit</span>
                         </div>
-                        <small class="text-muted">Sistem akan melanjutkan nomor meja terakhir.</small>
                     </div>
                      <div class="mb-3">
                         <label class="form-label">Lokasi Cabang</label>
@@ -127,120 +120,131 @@ include '../layouts/admin/header.php';
     </div>
 </div>
 
-<div class="modal fade" id="qrModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="qrModal" tabindex="-1">
     <div class="modal-dialog modal-sm modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header border-0"><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
             <div class="modal-body text-center pt-0">
-                <h5 id="qrMejaTitle" class="mb-1 fw-bold">Meja X</h5>
-                <p id="qrCabangTitle" class="text-muted small mb-3">Cabang X</p>
+                <h5 id="qrMejaTitle" class="mb-1 fw-bold"></h5>
+                <p id="qrCabangTitle" class="text-muted small mb-3"></p>
                 <div id="qrcode" class="d-flex justify-content-center mb-3"></div>
-                <p class="small text-muted" style="font-size: 10px; word-break: break-all;" id="urlText"></p>
-                <button class="btn btn-primary btn-sm w-100" onclick="window.print()"><i class="fas fa-print me-2"></i> Cetak Label</button>
+                <button class="btn btn-primary btn-sm w-100" onclick="window.print()"><i class="fas fa-print me-2"></i> Cetak</button>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-    let eventSource = null; // Variabel global untuk koneksi
+    let eventSource = null;
 
     function startRealtimeUpdates() {
-        // 1. Ambil ID Cabang yang dipilih/aktif
         const cabangId = document.getElementById('filterCabang').value;
-        const statusBadge = document.getElementById('connectionStatus');
+        if (eventSource) eventSource.close();
 
-        // 2. Jika ada koneksi lama, putus dulu agar tidak numpuk
-        if (eventSource) {
-            eventSource.close();
-            console.log("Koneksi lama ditutup.");
-        }
-
-        // 3. Buka Koneksi Baru ke API SSE
-        // Pastikan path 'api/sse_meja.php' sudah benar sesuai struktur folder
         eventSource = new EventSource(`api/sse_meja.php?cabang_id=${cabangId}`);
-
-        // Saat koneksi terbuka
-        eventSource.onopen = function() {
-            statusBadge.className = 'badge bg-success';
-            statusBadge.innerText = 'Live Connected';
-        };
-
-        // SAAT SERVER MENGIRIM DATA
+        
         eventSource.onmessage = function(event) {
             const result = JSON.parse(event.data);
-            
             if(result.status === 'success') {
                 const container = document.getElementById('meja-container');
                 let html = '';
-
                 if(result.data.length === 0) {
                     html = `<div class="col-12 text-center py-5"><p class="text-muted">Belum ada data meja.</p></div>`;
                 } else {
                     result.data.forEach(row => {
-                        // Logic Warna Status
-                        const bgBadge = row.status === 'kosong' ? 'bg-success' : 'bg-danger';
-                        const iconColor = row.status === 'kosong' ? 'text-success' : 'text-danger';
-                        const statusText = row.status.charAt(0).toUpperCase() + row.status.slice(1);
+                        const isTerisi = row.status === 'terisi';
+                        const bgBadge = isTerisi ? 'bg-danger' : 'bg-success';
+                        const iconColor = isTerisi ? 'text-danger' : 'text-success';
+                        const statusText = row.status.toUpperCase();
+
+                        // LOGIKA TOMBOL
+                        let buttons = '';
+                        if (isTerisi) {
+                            // Jika Terisi: Tombol Kosongkan (Aktif), Hapus (Mati)
+                            buttons = `
+                                <button class="btn btn-sm btn-warning w-100 fw-bold mb-2" onclick="kosongkanMeja('${row.id}', '${row.nomor_meja}')">
+                                    <i class="fas fa-sync-alt me-1"></i> Kosongkan
+                                </button>
+                            `;
+                        } else {
+                            // Jika Kosong: Tombol QR (Aktif), Hapus (Aktif)
+                            buttons = `
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-outline-dark flex-grow-1" onclick="showQR('${row.nomor_meja}', '${row.nama_cabang}', '${row.qr_url}')">
+                                        <i class="fas fa-qrcode"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="confirmDelete('${row.id}')">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            `;
+                        }
 
                         html += `
-                        <div class="col-sm-6 col-md-4 col-lg-3 mb-4">
-                            <div class="card table-card text-center h-100">
+                        <div class="col-6 col-md-4 col-lg-3 mb-4">
+                            <div class="card table-card text-center h-100 border-${isTerisi ? 'danger' : 'success'}">
                                 <div class="card-body">
-                                    <i class="fas fa-chair table-icon ${iconColor}"></i>
-                                    <h5 class="card-title mt-3">Meja ${row.nomor_meja}</h5>
+                                    <i class="fas fa-chair table-icon ${iconColor} mb-2"></i>
+                                    <h5 class="card-title mb-0">Meja ${row.nomor_meja}</h5>
                                     <small class="text-muted d-block mb-2">${row.nama_cabang}</small>
-                                    <span class="badge ${bgBadge}">${statusText}</span>
-                                </div>
-                                <div class="card-footer bg-white border-0">
-                                     <button class="btn btn-sm btn-outline-dark" 
-                                             onclick="showQR('${row.nomor_meja}', '${row.nama_cabang}', '${row.qr_url}')">
-                                         <i class="fas fa-qrcode"></i> QR
-                                     </button>
-                                     <a href="javascript:void(0);" onclick="confirmDelete('${row.id}')" class="btn btn-sm btn-outline-danger">
-                                         <i class="fas fa-trash"></i>
-                                     </a>
+                                    <span class="badge ${bgBadge} mb-3">${statusText}</span>
+                                    
+                                    <div class="mt-2">
+                                        ${buttons}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        `;
+                        </div>`;
                     });
                 }
-                // Update DOM
                 container.innerHTML = html;
             }
         };
-
-        // Saat terjadi error (biasanya server restart atau koneksi putus)
-        eventSource.onerror = function() {
-            statusBadge.className = 'badge bg-warning text-dark';
-            statusBadge.innerText = 'Reconnecting...';
-            // SSE otomatis mencoba reconnect, jadi kita biarkan saja
-        };
     }
 
-    // Jalankan saat halaman selesai dimuat
-    document.addEventListener('DOMContentLoaded', () => {
-        startRealtimeUpdates();
-    });
+    document.addEventListener('DOMContentLoaded', startRealtimeUpdates);
 
-    // Fungsi Helper Lainnya
     function showQR(nomor, cabang, url) {
         document.getElementById('qrMejaTitle').innerText = "Meja " + nomor;
         document.getElementById('qrCabangTitle').innerText = cabang;
-        document.getElementById('urlText').innerText = url;
         document.getElementById('qrcode').innerHTML = "";
-        new QRCode(document.getElementById("qrcode"), { text: url, width: 180, height: 180, colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.H });
-        var myModal = new bootstrap.Modal(document.getElementById('qrModal'));
-        myModal.show();
+        new QRCode(document.getElementById("qrcode"), { text: url, width: 150, height: 150 });
+        new bootstrap.Modal(document.getElementById('qrModal')).show();
     }
 
     function confirmDelete(id) {
         Swal.fire({
-            title: 'Hapus Meja?', text: "Pastikan meja sudah tidak digunakan!", icon: 'warning',
-            showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Ya, Hapus!'
+            title: 'Hapus Meja?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Hapus'
         }).then((result) => {
-            if (result.isConfirmed) { window.location.href = "?hapus=" + id; }
+            if (result.isConfirmed) window.location.href = "?hapus=" + id;
+        })
+    }
+
+    function kosongkanMeja(id, nomor) {
+        Swal.fire({
+            title: `Kosongkan Meja ${nomor}?`,
+            text: "Pastikan pelanggan sudah pergi.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ffc107',
+            confirmButtonText: 'Ya, Bersihkan!'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Panggil API Action
+                const formData = new FormData();
+                formData.append('action', 'kosongkan_meja');
+                formData.append('id', id);
+                
+                fetch('api/transaksi_action.php', { method: 'POST', body: formData })
+                .then(res => res.json())
+                .then(data => {
+                    if(data.status === 'success') {
+                        Swal.fire('Berhasil', data.message, 'success');
+                    } else {
+                        Swal.fire('Gagal', data.message, 'error');
+                    }
+                });
+            }
         })
     }
 </script>
