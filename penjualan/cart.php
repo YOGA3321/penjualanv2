@@ -66,7 +66,7 @@ if (!isset($_SESSION['plg_meja_id'])) {
                 </div>
                 <div class="alert alert-info mt-3 small mb-0 d-flex align-items-start d-none" id="infoMidtrans">
                     <i class="fas fa-info-circle me-2 mt-1"></i> 
-                    <div>Anda akan diarahkan ke halaman pembayaran online (Gopay/OVO/ShopeePay).</div>
+                    <div>Pembayaran online (Gopay/OVO/ShopeePay) akan muncul di layar ini.</div>
                 </div>
             </div>
         </div>
@@ -84,6 +84,11 @@ if (!isset($_SESSION['plg_meja_id'])) {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <script type="text/javascript"
+        src="https://app.sandbox.midtrans.com/snap/snap.js"
+        data-client-key="SB-Mid-client-m2n6kBqd8rsKrRST">
+    </script>
     
     <script>
         // --- LOGIKA JAVASCRIPT PELANGGAN ---
@@ -112,7 +117,7 @@ if (!isset($_SESSION['plg_meja_id'])) {
             let total = 0;
 
             cart.forEach((item, index) => {
-                // [PENTING] Menangani perbedaan nama variabel agar tidak NaN
+                // Menangani perbedaan nama variabel agar tidak NaN
                 // Dashboard.js menyimpan: name, price, quantity, image
                 let qty = item.quantity ? parseInt(item.quantity) : 1;
                 let price = item.price ? parseInt(item.price) : 0;
@@ -216,12 +221,32 @@ if (!isset($_SESSION['plg_meja_id'])) {
                     // Hapus Keranjang setelah sukses
                     localStorage.removeItem('cart_v2');
                     
+                    // --- JIKA METODE MIDTRANS / QRIS ---
                     if (metode === 'midtrans' && data.snap_token) {
-                        // Redirect ke Midtrans Snap Page
-                        // Gunakan URL Sandbox untuk testing
-                        window.location.href = 'https://app.sandbox.midtrans.com/snap/v2/vtweb/' + data.snap_token;
-                    } else {
-                        // Tunai -> Struk
+                        Swal.close();
+                        
+                        // POPUP SNAP
+                        window.snap.pay(data.snap_token, {
+                            onSuccess: function(result){
+                                window.location.href = 'status.php?uuid=' + data.uuid;
+                            },
+                            onPending: function(result){
+                                // Pending (misal pilih VA tapi belum bayar) -> Ke Status Page
+                                window.location.href = 'status.php?uuid=' + data.uuid;
+                            },
+                            onError: function(result){
+                                Swal.fire('Gagal', 'Pembayaran gagal.', 'error');
+                            },
+                            onClose: function(){
+                                // [PENTING] Jika di-close, JANGAN kembali ke cart, tapi ke Status Page
+                                // Agar user bisa bayar ulang (Resume) tanpa buat order baru
+                                console.log('Closed without payment');
+                                window.location.href = 'status.php?uuid=' + data.uuid;
+                            }
+                        });
+                    }
+                    // --- JIKA METODE TUNAI ---
+                    else {
                         Swal.fire({
                             icon: 'success',
                             title: 'Pesanan Masuk',
@@ -230,7 +255,7 @@ if (!isset($_SESSION['plg_meja_id'])) {
                             confirmButtonText: 'Lanjut'
                         })
                         .then(() => {
-                            // [CHANGE] Arahkan ke status.php, bukan struk.php
+                            // Arahkan ke status.php
                             window.location.href = 'status.php?uuid=' + data.uuid;
                         });
                     }
@@ -247,9 +272,5 @@ if (!isset($_SESSION['plg_meja_id'])) {
         // Init pertama kali
         renderCart();
     </script>
-    <script type="text/javascript"
-    src="https://app.sandbox.midtrans.com/snap/snap.js"
-    data-client-key="SB-Mid-client-m2n6kBqd8rsKrRST">
-</script>
 </body>
 </html>

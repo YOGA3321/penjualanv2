@@ -50,6 +50,10 @@ $active_menu = isset($active_menu) ? $active_menu : '';
                 <li class="<?= $active_menu == 'kategori' ? 'active' : '' ?>">
                     <a href="kategori"><i class="fas fa-tags fa-fw"></i> <span>Kategori Menu</span></a>
                 </li>
+                <?php if(isset($_SESSION['level']) && $_SESSION['level'] == 'admin'): ?>
+                    <li><a href="users">Manajemen User</a></li>
+                    <li><a href="cabang">Manajemen Cabang</a></li>
+                <?php endif; ?>
             </ul>
 
             <p class="sidebar-heading">Operasional</p>

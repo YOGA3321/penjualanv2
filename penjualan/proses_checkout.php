@@ -1,18 +1,37 @@
 <?php
+ini_set('display_errors', 0);
+error_reporting(E_ALL);
+
+register_shutdown_function(function() {
+    $error = error_get_last();
+    if ($error && ($error['type'] === E_ERROR || $error['type'] === E_PARSE)) {
+        http_response_code(500);
+        header('Content-Type: application/json');
+        echo json_encode(['status' => 'error', 'message' => 'Server Error: ' . $error['message']]);
+        exit;
+    }
+});
+
+ob_start();
 session_start();
 require_once '../auth/koneksi.php';
 
-// [FIX] AKTIFKAN LIBRARY MIDTRANS
-require_once dirname(__FILE__) . '/../vendor/autoload.php'; 
+// Cek Library Midtrans
+$autoload_path = dirname(__FILE__) . '/../vendor/autoload.php';
+if (!file_exists($autoload_path)) {
+    ob_clean();
+    echo json_encode(['status' => 'error', 'message' => 'Library Midtrans hilang.']); exit;
+}
+require_once $autoload_path;
 
 header('Content-Type: application/json');
 
-// Cek Sesi Meja
 if (!isset($_SESSION['plg_meja_id'])) {
-    echo json_encode(['status' => 'error', 'message' => 'Sesi habis, scan ulang QR']); exit;
+    ob_clean(); echo json_encode(['status' => 'error', 'message' => 'Sesi habis, scan ulang QR']); exit;
 }
 
 $input = json_decode(file_get_contents('php://input'), true);
+if (!$input) { ob_clean(); echo json_encode(['status' => 'error', 'message' => 'Data invalid']); exit; }
 
 $meja_id = $_SESSION['plg_meja_id'];
 $nama = $koneksi->real_escape_string($input['nama_pelanggan']);
@@ -29,10 +48,9 @@ $uuid = sprintf('%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
 $status_bayar = 'pending';
 $status_pesanan = ($metode == 'tunai') ? 'menunggu_konfirmasi' : 'menunggu_bayar'; 
 $snap_token = null;
+$midtrans_order_id = null;
 
-// --- LOGIKA MIDTRANS ---
 if ($metode == 'midtrans') {
-    // Pastikan Server Key SAMA dengan yang di admin
     \Midtrans\Config::$serverKey = 'SB-Mid-server-p0J5Kw0tX_JHY_HoYJOQzYXQ'; 
     \Midtrans\Config::$isProduction = false;
     \Midtrans\Config::$isSanitized = true;
@@ -42,27 +60,22 @@ if ($metode == 'midtrans') {
     $midtrans_order_id = "RESTO-" . $short_uuid . "-" . time(); 
 
     $params = [
-        'transaction_details' => [
-            'order_id' => $midtrans_order_id,
-            'gross_amount' => (int)$total,
-        ],
-        'customer_details' => [
-            'first_name' => $nama,
-        ],
+        'transaction_details' => ['order_id' => $midtrans_order_id, 'gross_amount' => (int)$total],
+        'customer_details' => [ 'first_name' => $nama ],
         'custom_field1' => $uuid 
     ];
 
     try {
         $snap_token = \Midtrans\Snap::getSnapToken($params);
     } catch (Exception $e) {
+        ob_clean();
         echo json_encode(['status' => 'error', 'message' => 'Midtrans Error: ' . $e->getMessage()]); exit;
     }
 }
 
-// ... (Sisa kode insert database sama seperti file asli Anda) ...
-// Insert Header Transaksi
-$stmt = $koneksi->prepare("INSERT INTO transaksi (uuid, meja_id, nama_pelanggan, total_harga, status_pembayaran, metode_pembayaran, status_pesanan, snap_token) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-$stmt->bind_param("sissssss", $uuid, $meja_id, $nama, $total, $status_bayar, $metode, $status_pesanan, $snap_token);
+// Insert Database
+$stmt = $koneksi->prepare("INSERT INTO transaksi (uuid, meja_id, nama_pelanggan, total_harga, status_pembayaran, metode_pembayaran, status_pesanan, snap_token, midtrans_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+$stmt->bind_param("sisssssss", $uuid, $meja_id, $nama, $total, $status_bayar, $metode, $status_pesanan, $snap_token, $midtrans_order_id);
 
 if ($stmt->execute()) {
     $trx_id = $koneksi->insert_id;
@@ -76,12 +89,10 @@ if ($stmt->execute()) {
     }
     $koneksi->query("UPDATE meja SET status = 'terisi' WHERE id = '$meja_id'");
 
-    echo json_encode([
-        'status' => 'success', 
-        'uuid' => $uuid,
-        'snap_token' => $snap_token
-    ]);
+    ob_clean();
+    echo json_encode(['status' => 'success', 'uuid' => $uuid, 'snap_token' => $snap_token]);
 } else {
+    ob_clean();
     echo json_encode(['status' => 'error', 'message' => $koneksi->error]);
 }
 ?>
