@@ -2,10 +2,11 @@
 session_start();
 require_once '../auth/koneksi.php';
 
-// --- 1. LOGIKA PENANGANAN TOKEN (SCAN QR BARU) ---
+// --- 1. LOGIKA PENANGANAN TOKEN (SCAN QR) ---
 if (isset($_GET['token'])) {
     $token = $koneksi->real_escape_string($_GET['token']);
     
+    // Ambil info meja berdasarkan Token
     $query = "SELECT meja.*, cabang.nama_cabang, cabang.id as id_cabang 
               FROM meja 
               JOIN cabang ON meja.cabang_id = cabang.id 
@@ -16,26 +17,43 @@ if (isset($_GET['token'])) {
     if ($result->num_rows > 0) {
         $info = $result->fetch_assoc();
         
-        // [FIX] BERSIHKAN SESI LAMA DULU AGAR FRESH
-        // Kita simpan data meja baru
-        $_SESSION['plg_meja_id'] = $info['id'];
-        $_SESSION['plg_no_meja'] = $info['nomor_meja'];
-        $_SESSION['plg_cabang_id'] = $info['id_cabang'];
-        $_SESSION['plg_nama_cabang'] = $info['nama_cabang'];
-        
-        // [FIX] SET TRIGGER UNTUK HAPUS LOCALSTORAGE (CART JS)
-        $_SESSION['force_reset_cart'] = true;
-        
-        // Redirect ke diri sendiri untuk membersihkan URL Token
-        header("Location: index.php"); 
-        exit;
+        // Cek Session ID Meja di HP Pelanggan (Jika ada)
+        $session_meja_id = $_SESSION['plg_meja_id'] ?? 0;
+
+        // --- LOGIKA BARU UNTUK ADD-ON ---
+        if ($info['status'] == 'terisi') {
+            // Jika meja TERISI, cek apakah ini orang yang sama?
+            if ($session_meja_id == $info['id']) {
+                // ORANG SAMA: IZINKAN (Mode Tambah Pesanan)
+                // Jangan reset cart, biarkan dia lanjut belanja
+                header("Location: index.php"); 
+                exit;
+            } else {
+                // ORANG BEDA: TOLAK
+                $error_msg = "Meja ini sedang digunakan pelanggan lain.";
+            }
+        } else {
+            // MEJA KOSONG: IZINKAN MASUK (Pelanggan Baru)
+            
+            // Set Session Baru
+            $_SESSION['plg_meja_id'] = $info['id'];
+            $_SESSION['plg_no_meja'] = $info['nomor_meja'];
+            $_SESSION['plg_cabang_id'] = $info['id_cabang'];
+            $_SESSION['plg_nama_cabang'] = $info['nama_cabang'];
+            
+            // Trigger Reset Cart (Hanya untuk pelanggan baru)
+            $_SESSION['force_reset_cart'] = true;
+            
+            header("Location: index.php"); 
+            exit;
+        }
     } else {
-        $error_msg = "QR Code tidak valid atau kadaluarsa!";
+        $error_msg = "QR Code tidak valid!";
     }
 }
 
-// --- 2. JIKA BELUM ADA SESI MEJA -> TAMPILKAN LANDING PAGE SCAN ---
-if (!isset($_SESSION['plg_meja_id'])) {
+// --- 2. JIKA BELUM ADA SESI SAMA SEKALI -> TAMPILKAN SCANNER ---
+if (!isset($_SESSION['plg_meja_id']) || isset($error_msg)) {
     ?>
     <!DOCTYPE html>
     <html lang="id">
@@ -54,24 +72,18 @@ if (!isset($_SESSION['plg_meja_id'])) {
     <body>
         <div class="scan-card">
             <div class="scan-icon"><i class="fas fa-qrcode"></i></div>
-            <h3 class="fw-bold mb-2">Selamat Datang!</h3>
-            <p class="text-muted mb-4">Silakan scan QR Code yang ada di atas meja untuk mulai memesan.</p>
             
             <?php if(isset($error_msg)): ?>
-                <div class="alert alert-danger py-2 mb-4 small"><?= $error_msg ?></div>
-            <?php endif; ?>
-
-            <a href="intent://scan/#Intent;scheme=zxing;package=com.google.zxing.client.android;end" class="btn btn-primary w-100 rounded-pill py-2 mb-3 shadow-sm">
-                <i class="fas fa-camera me-2"></i> Buka Kamera / Pemindai
-            </a>
-            
-            <p class="small text-muted mb-4">Atau gunakan aplikasi kamera bawaan HP Anda.</p>
-            
-            <div class="border-top pt-3">
-                <a href="../login" class="text-decoration-none small text-secondary fw-bold">
-                    <i class="fas fa-user-lock me-1"></i> Login Karyawan
+                <div class="alert alert-danger py-3 mb-4 fw-bold">
+                    <i class="fas fa-exclamation-triangle me-2"></i> <?= $error_msg ?>
+                </div>
+            <?php else: ?>
+                <h3 class="fw-bold mb-2">Selamat Datang!</h3>
+                <p class="text-muted mb-4">Silakan scan QR Code di meja untuk memesan.</p>
+                <a href="intent://scan/#Intent;scheme=zxing;package=com.google.zxing.client.android;end" class="btn btn-primary w-100 rounded-pill py-2 mb-3 shadow-sm">
+                    <i class="fas fa-camera me-2"></i> Buka Kamera
                 </a>
-            </div>
+            <?php endif; ?>
         </div>
     </body>
     </html>
@@ -79,10 +91,8 @@ if (!isset($_SESSION['plg_meja_id'])) {
     exit;
 }
 
-// --- 3. LOGIKA TAMPILKAN MENU ---
+// --- 3. LOGIKA TAMPILKAN MENU (SAMA SEPERTI SEBELUMNYA) ---
 $cabang_id = $_SESSION['plg_cabang_id'];
-
-// Ambil Menu
 $sql_menu = "SELECT m.*, k.nama_kategori 
              FROM menu m 
              JOIN kategori_menu k ON m.kategori_id = k.id 
@@ -170,7 +180,7 @@ $menus = $koneksi->query($sql_menu);
                     <?php endwhile; ?>
                 <?php else: ?>
                     <div class="col-12 text-center py-5">
-                        <p class="text-muted">Belum ada menu tersedia untuk cabang ini.</p>
+                        <p class="text-muted">Belum ada menu tersedia.</p>
                     </div>
                 <?php endif; ?>
             </div>
@@ -225,24 +235,16 @@ $menus = $koneksi->query($sql_menu);
     <?php if (isset($_SESSION['force_reset_cart'])): ?>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Hapus keranjang di LocalStorage
-            localStorage.removeItem('cart_v2');
-            
-            // Tampilkan Notif Selamat Datang
+            localStorage.removeItem('cart_v2'); // Hapus Cart Lama
             Swal.fire({
                 icon: 'success',
                 title: 'Selamat Datang!',
-                text: 'Anda berada di Meja <?= $_SESSION['plg_no_meja'] ?> - <?= $_SESSION['plg_nama_cabang'] ?>',
-                timer: 2500,
-                showConfirmButton: false
-            }).then(() => {
-                // Refresh UI Cart agar kosong
-                location.reload(); 
-            });
+                text: 'Silakan pesan menu.',
+                timer: 1500, showConfirmButton: false
+            }).then(() => { location.reload(); });
         });
     </script>
-    <?php unset($_SESSION['force_reset_cart']); // Matikan trigger setelah dijalankan ?>
-    <?php endif; ?>
+    <?php unset($_SESSION['force_reset_cart']); endif; ?>
 
 </body>
 </html>

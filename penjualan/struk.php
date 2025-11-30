@@ -2,6 +2,9 @@
 require_once '../auth/koneksi.php';
 $uuid = $_GET['uuid'] ?? '';
 
+if(empty($uuid)) { header("Location: index.php"); exit; }
+
+// 1. AMBIL DATA DULU (FIX ERROR Undefined variable $trx)
 $query = "SELECT t.*, m.nomor_meja, c.nama_cabang, c.alamat 
           FROM transaksi t 
           JOIN meja m ON t.meja_id = m.id
@@ -9,12 +12,22 @@ $query = "SELECT t.*, m.nomor_meja, c.nama_cabang, c.alamat
           WHERE t.uuid = '$uuid'";
 $trx = $koneksi->query($query)->fetch_assoc();
 
+// Cek jika data tidak ada
+if (!$trx) { die("Data transaksi tidak ditemukan."); }
+
+// 2. BARU LAKUKAN PENGECEKAN KEAMANAN
+// Jika status masih pending dan metode tunai, LEMPAR BALIK ke halaman tunggu (status.php)
+if ($trx['metode_pembayaran'] == 'tunai' && $trx['status_pembayaran'] == 'pending') {
+    header("Location: status.php?uuid=$uuid");
+    exit;
+}
+
 $details = $koneksi->query("SELECT d.*, m.nama_menu FROM transaksi_detail d JOIN menu m ON d.menu_id = m.id WHERE d.transaksi_id = '".$trx['id']."'");
 ?>
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Struk #<?= $uuid ?></title>
+    <title>Struk #<?= substr($uuid,0,8) ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body { background: #eee; }
@@ -61,7 +74,6 @@ $details = $koneksi->query("SELECT d.*, m.nama_menu FROM transaksi_detail d JOIN
         <span>Rp <?= number_format($trx['total_harga']) ?></span>
     </div>
     
-    <?php if($trx['metode_pembayaran'] == 'tunai'): ?>
     <div class="d-flex justify-content-between small">
         <span>Bayar</span>
         <span><?= number_format($trx['uang_bayar']) ?></span>
@@ -70,28 +82,16 @@ $details = $koneksi->query("SELECT d.*, m.nama_menu FROM transaksi_detail d JOIN
         <span>Kembali</span>
         <span><?= number_format($trx['kembalian']) ?></span>
     </div>
-    <?php endif; ?>
     
     <div class="dashed-line"></div>
     
     <div class="text-center small mt-3">
-        <?php if($trx['status_pembayaran'] == 'pending'): ?>
-            <div class="alert alert-warning p-1 mb-2">MENUNGGU PEMBAYARAN DI KASIR</div>
-        <?php else: ?>
-            <div class="fw-bold mb-2">LUNAS</div>
-        <?php endif; ?>
+        <div class="fw-bold mb-2">LUNAS</div>
         Terima Kasih atas Kunjungan Anda!
     </div>
 
     <div class="mt-4 d-grid gap-2 no-print">
         <button onclick="window.print()" class="btn btn-dark btn-sm">Cetak Struk</button>
-        
-        <?php if(empty($trx['user_id'])): // Jika belum login ?>
-            <button class="btn btn-outline-primary btn-sm">
-                <i class="fab fa-google me-1"></i> Simpan Transaksi (Login Google)
-            </button>
-        <?php endif; ?>
-        
         <a href="index.php" class="btn btn-link btn-sm text-decoration-none">Kembali ke Menu</a>
     </div>
 </div>

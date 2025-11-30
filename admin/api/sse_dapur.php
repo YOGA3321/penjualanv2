@@ -22,23 +22,26 @@ session_write_close();
 $last_hash = null;
 
 while (true) {
-    // Ambil Pesanan yang SEDANG DIPROSES
+    // [FIX KRUSIAL]
+    // HANYA ambil yang status_pesanan = 'diproses' (Artinya sudah dikonfirmasi admin/lunas)
+    // DAN status_pembayaran = 'settlement' (LUNAS)
+    
     $sql = "SELECT t.id, t.nama_pelanggan, t.created_at, m.nomor_meja, c.nama_cabang
             FROM transaksi t
             JOIN meja m ON t.meja_id = m.id
             JOIN cabang c ON m.cabang_id = c.id
-            WHERE t.status_pesanan = 'diproses'";
+            WHERE t.status_pesanan = 'diproses' 
+            AND t.status_pembayaran = 'settlement'"; // Syarat Wajib LUNAS
 
     if ($level != 'admin' || (isset($_GET['view_cabang']) && $_GET['view_cabang'] != 'pusat')) {
         $sql .= " AND m.cabang_id = '$cabang_id'";
     }
-    $sql .= " ORDER BY t.created_at ASC"; // Pesanan lama di atas (First In First Out)
+    $sql .= " ORDER BY t.created_at ASC"; 
 
     $result = $koneksi->query($sql);
     $orders = [];
     
     while ($row = $result->fetch_assoc()) {
-        // Ambil Detail Menu per Transaksi
         $trx_id = $row['id'];
         $details = $koneksi->query("SELECT d.qty, d.catatan, mn.nama_menu 
                                     FROM transaksi_detail d 

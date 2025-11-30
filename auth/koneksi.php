@@ -1,6 +1,6 @@
 <?php
 // DETEKSI OTOMATIS: Apakah di Localhost atau Live Server?
-$whitelist = array('127.0.0.1', '::1', 'localhost');
+$whitelist = array('127.0.0.1', '::1', 'localhost', '192.168.0.192');
 
 // Cek apakah IP Pengunjung ada di whitelist localhost
 if(in_array($_SERVER['REMOTE_ADDR'], $whitelist)){

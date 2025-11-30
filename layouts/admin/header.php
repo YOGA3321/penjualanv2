@@ -54,6 +54,9 @@ $active_menu = isset($active_menu) ? $active_menu : '';
 
             <p class="sidebar-heading">Operasional</p>
             <ul>
+                <li class="<?= $active_menu == 'transaksi_masuk' ? 'active' : '' ?>">
+                    <a href="transaksi_masuk"><i class="fas fa-bell fa-fw"></i> <span>Pesanan Masuk</span></a>
+                </li>
                 <li class="<?= $active_menu == 'order_manual' ? 'active' : '' ?>">
                     <a href="order_manual"><i class="fas fa-tablet-alt fa-fw"></i> <span>Pesanan Manual</span></a>
                 </li>

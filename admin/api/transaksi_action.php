@@ -8,12 +8,15 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $action = $_POST['action'] ?? '';
-$id = $_POST['id'] ?? ''; // Bisa ID Transaksi atau ID Meja
+$id = $_POST['id'] ?? '';
 
 if ($action == 'konfirmasi_bayar') {
-    // Kasir menerima uang tunai dari pelanggan yg order mandiri
     $uang = $_POST['uang_bayar'];
     $kembali = $_POST['kembalian'];
+    
+    // [FIX LOGIC]
+    // 1. Ubah status_pembayaran -> 'settlement' (Lunas)
+    // 2. Ubah status_pesanan -> 'diproses' (Agar muncul di API Dapur)
     
     $query = "UPDATE transaksi SET 
               status_pembayaran = 'settlement', 
@@ -23,14 +26,14 @@ if ($action == 'konfirmasi_bayar') {
               WHERE id = '$id'";
               
     if ($koneksi->query($query)) {
-        echo json_encode(['status' => 'success', 'message' => 'Pembayaran Dikonfirmasi! Masuk ke Dapur.']);
+        echo json_encode(['status' => 'success', 'message' => 'Lunas! Pesanan dikirim ke Dapur.']);
     } else {
         echo json_encode(['status' => 'error', 'message' => $koneksi->error]);
     }
 } 
 
 elseif ($action == 'selesai_masak') {
-    // Dapur menyelesaikan pesanan
+    // Dari Dapur -> Siap Saji (Hilang dari layar dapur)
     $query = "UPDATE transaksi SET status_pesanan = 'siap_saji' WHERE id = '$id'";
     if ($koneksi->query($query)) {
         echo json_encode(['status' => 'success', 'message' => 'Pesanan Siap Disajikan!']);
@@ -40,21 +43,16 @@ elseif ($action == 'selesai_masak') {
 }
 
 elseif ($action == 'kosongkan_meja') {
-    // Pelayan membersihkan meja (Update status meja & selesaikan transaksi terkait)
-    // 1. Update Transaksi terakhir di meja itu jadi 'selesai' (jika belum)
+    // 1. Selesaikan semua pesanan di meja itu
     $koneksi->query("UPDATE transaksi SET status_pesanan = 'selesai' WHERE meja_id = '$id' AND status_pesanan != 'selesai'");
     
-    // 2. Set Meja jadi Kosong
+    // 2. Set Meja jadi Kosong (Agar bisa discan pelanggan baru)
     $query = "UPDATE meja SET status = 'kosong' WHERE id = '$id'";
     
     if ($koneksi->query($query)) {
-        echo json_encode(['status' => 'success', 'message' => 'Meja berhasil dikosongkan.']);
+        echo json_encode(['status' => 'success', 'message' => 'Meja Kosong & Siap Pakai.']);
     } else {
         echo json_encode(['status' => 'error', 'message' => $koneksi->error]);
     }
-}
-
-else {
-    echo json_encode(['status' => 'error', 'message' => 'Aksi tidak dikenal']);
 }
 ?>
