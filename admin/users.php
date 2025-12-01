@@ -1,145 +1,191 @@
 <?php
 session_start();
+if (!isset($_SESSION['user_id']) || $_SESSION['level'] != 'admin') { header("Location: ../login.php"); exit; }
 require_once '../auth/koneksi.php';
-
-// 1. CEK AKSES: HANYA ADMIN
-if (!isset($_SESSION['level']) || $_SESSION['level'] != 'admin') {
-    header("Location: index"); // Lempar ke index (yang akan routing ke laporan/login)
-    exit;
-}
 
 $page_title = "Manajemen User";
 $active_menu = "users";
 
-// --- LOGIKA TAMBAH USER ---
-if (isset($_POST['tambah_user'])) {
-    $nama  = htmlspecialchars($_POST['nama']);
-    $email = htmlspecialchars($_POST['email']);
-    $pass  = password_hash($_POST['password'], PASSWORD_DEFAULT);
-    $role  = $_POST['level'];
-    $hp    = $_POST['no_hp'];
+// --- TAMBAH USER ---
+if(isset($_POST['tambah_user'])) {
+    $nama = $_POST['nama'];
+    $email = $_POST['email'];
+    $password = password_hash($_POST['password'], PASSWORD_DEFAULT); // Hash Password
+    $level = $_POST['level'];
+    $cabang = ($_POST['cabang_id'] == 'NULL') ? NULL : $_POST['cabang_id'];
     
-    // Logika Cabang
-    $cabang_id = ($role == 'admin') ? NULL : $_POST['cabang_id'];
-
-    // Cek Email Duplikat
+    // Cek Email Kembar
     $cek = $koneksi->query("SELECT id FROM users WHERE email = '$email'");
-    if ($cek->num_rows > 0) {
-        $_SESSION['swal'] = [
-            'icon' => 'error',
-            'title' => 'Gagal!',
-            'text' => 'Email sudah digunakan user lain.'
-        ];
+    if($cek->num_rows > 0) {
+        $_SESSION['swal'] = ['icon'=>'error', 'title'=>'Gagal', 'text'=>'Email sudah terdaftar!'];
     } else {
-        $stmt = $koneksi->prepare("INSERT INTO users (nama, email, password, no_hp, level, cabang_id) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("sssssi", $nama, $email, $pass, $hp, $role, $cabang_id);
+        $stmt = $koneksi->prepare("INSERT INTO users (nama, email, password, level, cabang_id) VALUES (?, ?, ?, ?, ?)");
+        $stmt->bind_param("sssss", $nama, $email, $password, $level, $cabang); // 's' bisa handle NULL juga
         
-        if ($stmt->execute()) {
-            $_SESSION['swal'] = [
-                'icon' => 'success',
-                'title' => 'Berhasil!',
-                'text' => 'User baru telah ditambahkan.'
-            ];
+        if($stmt->execute()) {
+            $_SESSION['swal'] = ['icon'=>'success', 'title'=>'Berhasil', 'text'=>'User baru ditambahkan'];
         } else {
-            $_SESSION['swal'] = [
-                'icon' => 'error',
-                'title' => 'Error',
-                'text' => $koneksi->error
-            ];
+            $_SESSION['swal'] = ['icon'=>'error', 'title'=>'Error', 'text'=>$koneksi->error];
         }
     }
-    // Refresh halaman agar form tidak submit ulang
-    header("Location: users");
-    exit;
+    header("Location: users"); exit;
 }
 
-// --- LOGIKA HAPUS USER ---
-if (isset($_GET['hapus'])) {
-    $id = $_GET['hapus'];
+// --- EDIT USER ---
+if(isset($_POST['edit_user'])) {
+    $id = $_POST['id_user'];
+    $nama = $_POST['nama'];
+    $email = $_POST['email'];
+    $level = $_POST['level'];
+    $cabang = ($_POST['cabang_id'] == 'NULL') ? NULL : $_POST['cabang_id'];
     
-    // 2. CEGAH HAPUS DIRI SENDIRI
-    if ($id == $_SESSION['user_id']) { 
-        $_SESSION['swal'] = [
-            'icon' => 'warning',
-            'title' => 'Akses Ditolak',
-            'text' => 'Anda tidak dapat menghapus akun Anda sendiri!'
-        ];
+    // Logic Password: Jika kosong, jangan diupdate
+    if(!empty($_POST['password'])) {
+        $pass = password_hash($_POST['password'], PASSWORD_DEFAULT);
+        $sql = "UPDATE users SET nama=?, email=?, level=?, cabang_id=?, password=? WHERE id=?";
+        $stmt = $koneksi->prepare($sql);
+        $stmt->bind_param("sssssi", $nama, $email, $level, $cabang, $pass, $id);
+    } else {
+        $sql = "UPDATE users SET nama=?, email=?, level=?, cabang_id=? WHERE id=?";
+        $stmt = $koneksi->prepare($sql);
+        $stmt->bind_param("ssssi", $nama, $email, $level, $cabang, $id);
+    }
+    
+    if($stmt->execute()) {
+        $_SESSION['swal'] = ['icon'=>'success', 'title'=>'Update', 'text'=>'Data user diperbarui'];
+    } else {
+        $_SESSION['swal'] = ['icon'=>'error', 'title'=>'Error', 'text'=>$koneksi->error];
+    }
+    header("Location: users"); exit;
+}
+
+// --- HAPUS USER ---
+if(isset($_GET['hapus'])) {
+    $id = $_GET['hapus'];
+    if($id == $_SESSION['user_id']) {
+        $_SESSION['swal'] = ['icon'=>'warning', 'title'=>'Ditolak', 'text'=>'Tidak bisa menghapus diri sendiri!'];
     } else {
         $koneksi->query("DELETE FROM users WHERE id = '$id'");
-        $_SESSION['swal'] = [
-            'icon' => 'success',
-            'title' => 'Terhapus',
-            'text' => 'Data user berhasil dihapus.'
-        ];
+        $_SESSION['swal'] = ['icon'=>'success', 'title'=>'Terhapus', 'text'=>'User berhasil dihapus'];
     }
-    header("Location: users");
-    exit;
+    header("Location: users"); exit;
 }
 
-// AMBIL DATA
-$query_users = "SELECT users.*, cabang.nama_cabang 
-                FROM users 
-                LEFT JOIN cabang ON users.cabang_id = cabang.id 
-                ORDER BY level ASC, nama ASC";
-$users = $koneksi->query($query_users);
-$cabangs = $koneksi->query("SELECT * FROM cabang");
+// Ambil Data User + Nama Cabang
+$sql = "SELECT u.*, c.nama_cabang FROM users u LEFT JOIN cabang c ON u.cabang_id = c.id ORDER BY u.id DESC";
+$data = $koneksi->query($sql);
 
-// Tombol Header
-$header_action_btn = '
-<button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#userModal">
-    <i class="fas fa-plus me-2"></i>User Baru
-</button>';
+// List Cabang untuk Dropdown
+$cabangs = $koneksi->query("SELECT * FROM cabang");
+$list_cabang = [];
+while($c = $cabangs->fetch_assoc()) { $list_cabang[] = $c; }
 
 include '../layouts/admin/header.php';
 ?>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0 fw-bold text-primary"><i class="fas fa-users-cog me-2"></i>Manajemen User</h4>
+    <button class="btn btn-primary fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#modalTambah">
+        <i class="fas fa-user-plus me-2"></i> Tambah User
+    </button>
+</div>
 
 <div class="card border-0 shadow-sm">
     <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
+                <thead class="bg-light">
                     <tr>
-                        <th class="ps-4">Nama</th>
+                        <th class="px-4">Nama User</th>
                         <th>Email</th>
-                        <th>Cabang</th>
                         <th>Level</th>
-                        <th class="text-end pe-4">Aksi</th>
+                        <th>Cabang</th>
+                        <th class="text-end px-4">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php while($u = $users->fetch_assoc()): ?>
+                    <?php while($row = $data->fetch_assoc()): ?>
                     <tr>
-                        <td class="ps-4">
+                        <td class="px-4 fw-bold">
                             <div class="d-flex align-items-center">
-                                <div class="bg-light rounded-circle d-flex align-items-center justify-content-center me-3" style="width:40px; height:40px;">
+                                <div class="bg-light rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
                                     <i class="fas fa-user text-secondary"></i>
                                 </div>
-                                <div>
-                                    <strong><?= $u['nama'] ?></strong><br>
-                                    <small class="text-muted"><?= $u['no_hp'] ?></small>
-                                </div>
+                                <?= htmlspecialchars($row['nama']) ?>
                             </div>
                         </td>
-                        <td><?= $u['email'] ?></td>
+                        <td class="text-muted"><?= htmlspecialchars($row['email']) ?></td>
                         <td>
-                            <?php if($u['level'] == 'admin'): ?>
-                                <span class="badge bg-dark">Pusat</span>
-                            <?php else: ?>
-                                <?= $u['nama_cabang'] ?? '<span class="text-danger">-</span>' ?>
-                            <?php endif; ?>
+                            <?php 
+                                $badge = ($row['level']=='admin') ? 'bg-danger' : (($row['level']=='karyawan') ? 'bg-primary' : 'bg-success');
+                                echo "<span class='badge $badge rounded-pill'>".ucfirst($row['level'])."</span>";
+                            ?>
                         </td>
                         <td>
-                            <?php $badge = $u['level'] == 'admin' ? 'bg-danger' : 'bg-info'; ?>
-                            <span class="badge <?= $badge ?>"><?= ucfirst($u['level']) ?></span>
+                            <?= $row['nama_cabang'] ? $row['nama_cabang'] : '<span class="text-muted fst-italic">Semua Cabang (Global)</span>' ?>
                         </td>
-                        <td class="text-end pe-4">
-                            <?php if($u['id'] == $_SESSION['user_id']): ?>
-                                <button class="btn btn-sm btn-outline-secondary" disabled title="Akun Anda"><i class="fas fa-trash"></i></button>
-                            <?php else: ?>
-                                <a href="javascript:void(0);" onclick="confirmDelete('<?= $u['id'] ?>')" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></a>
+                        <td class="text-end px-4">
+                            <button class="btn btn-sm btn-info text-white me-1" data-bs-toggle="modal" data-bs-target="#modalEdit<?= $row['id'] ?>">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <?php if($row['id'] != $_SESSION['user_id']): ?>
+                            <a href="users?hapus=<?= $row['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Hapus user ini?')">
+                                <i class="fas fa-trash"></i>
+                            </a>
                             <?php endif; ?>
                         </td>
                     </tr>
+
+                    <div class="modal fade" id="modalEdit<?= $row['id'] ?>" tabindex="-1">
+                        <div class="modal-dialog">
+                            <form method="POST" class="modal-content bg-white">
+                                <div class="modal-header">
+                                    <h5 class="modal-title fw-bold">Edit User</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <input type="hidden" name="id_user" value="<?= $row['id'] ?>">
+                                    <div class="mb-3">
+                                        <label class="form-label">Nama Lengkap</label>
+                                        <input type="text" name="nama" class="form-control" value="<?= $row['nama'] ?>" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Email</label>
+                                        <input type="email" name="email" class="form-control" value="<?= $row['email'] ?>" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Password Baru <small class="text-muted">(Kosongkan jika tidak ingin ubah)</small></label>
+                                        <input type="password" name="password" class="form-control" placeholder="******">
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <label class="form-label">Level</label>
+                                            <select name="level" class="form-select">
+                                                <option value="admin" <?= $row['level']=='admin'?'selected':'' ?>>Admin</option>
+                                                <option value="karyawan" <?= $row['level']=='karyawan'?'selected':'' ?>>Karyawan</option>
+                                                <option value="pelanggan" <?= $row['level']=='pelanggan'?'selected':'' ?>>Pelanggan</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label">Cabang Penempatan</label>
+                                            <select name="cabang_id" class="form-select">
+                                                <option value="NULL">-- Global / Semua --</option>
+                                                <?php foreach($list_cabang as $c): ?>
+                                                    <option value="<?= $c['id'] ?>" <?= $row['cabang_id']==$c['id']?'selected':'' ?>>
+                                                        <?= $c['nama_cabang'] ?>
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
+                                    <button type="submit" name="edit_user" class="btn btn-primary">Simpan</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
                     <?php endwhile; ?>
                 </tbody>
             </table>
@@ -147,81 +193,51 @@ include '../layouts/admin/header.php';
     </div>
 </div>
 
-<div class="modal fade" id="userModal" tabindex="-1">
+<div class="modal fade" id="modalTambah" tabindex="-1">
     <div class="modal-dialog">
-        <div class="modal-content">
-            <form method="POST">
-                <div class="modal-header"><h5 class="modal-title">Tambah User</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-                <div class="modal-body">
-                    <div class="mb-3"><label class="form-label">Nama Lengkap</label><input type="text" name="nama" class="form-control" required></div>
-                    <div class="mb-3"><label class="form-label">Email (Username)</label><input type="email" name="email" class="form-control" required></div>
-                    <div class="mb-3"><label class="form-label">No HP</label><input type="text" name="no_hp" class="form-control" required></div>
-                    <div class="mb-3"><label class="form-label">Password</label><input type="password" name="password" class="form-control" required></div>
-                    
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Level</label>
-                            <select name="level" class="form-select" id="levelSelect" onchange="toggleCabang()">
-                                <option value="karyawan">Karyawan</option>
-                                <option value="admin">Admin Pusat</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6 mb-3" id="cabangWrapper">
-                            <label class="form-label">Penempatan Cabang</label>
-                            <select name="cabang_id" class="form-select">
-                                <?php 
-                                $cabangs->data_seek(0); 
-                                while($c = $cabangs->fetch_assoc()): 
-                                ?>
-                                    <option value="<?= $c['id'] ?>"><?= $c['nama_cabang'] ?></option>
-                                <?php endwhile; ?>
-                            </select>
-                        </div>
+        <form method="POST" class="modal-content bg-white">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Tambah User Baru</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Nama Lengkap</label>
+                    <input type="text" name="nama" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Email</label>
+                    <input type="email" name="email" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Password</label>
+                    <input type="password" name="password" class="form-control" required>
+                </div>
+                <div class="row">
+                    <div class="col-6">
+                        <label class="form-label">Level</label>
+                        <select name="level" class="form-select">
+                            <option value="karyawan">Karyawan</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Cabang</label>
+                        <select name="cabang_id" class="form-select">
+                            <option value="NULL">-- Global / Semua --</option>
+                            <?php foreach($list_cabang as $c): ?>
+                                <option value="<?= $c['id'] ?>"><?= $c['nama_cabang'] ?></option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="submit" name="tambah_user" class="btn btn-primary">Simpan</button>
-                </div>
-            </form>
-        </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
+                <button type="submit" name="tambah_user" class="btn btn-primary">Simpan</button>
+            </div>
+        </form>
     </div>
 </div>
 
-<script>
-    function toggleCabang() {
-        var level = document.getElementById('levelSelect').value;
-        var wrapper = document.getElementById('cabangWrapper');
-        wrapper.style.display = (level === 'admin') ? 'none' : 'block';
-    }
-
-    function confirmDelete(id) {
-        Swal.fire({
-            title: 'Hapus User?',
-            text: "Data yang dihapus tidak dapat dikembalikan!",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            cancelButtonColor: '#3085d6',
-            confirmButtonText: 'Ya, Hapus!',
-            cancelButtonText: 'Batal'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                window.location.href = "?hapus=" + id;
-            }
-        })
-    }
-</script>
-
 <?php include '../layouts/admin/footer.php'; ?>
-
-<?php if (isset($_SESSION['swal'])): ?>
-<script>
-    Swal.fire({
-        icon: '<?= $_SESSION['swal']['icon'] ?>',
-        title: '<?= $_SESSION['swal']['title'] ?>',
-        text: '<?= $_SESSION['swal']['text'] ?>',
-        timer: 2500,
-        showConfirmButton: false
-    });
-</script>
-<?php unset($_SESSION['swal']); endif; ?>
