@@ -18,11 +18,7 @@ require_once '../auth/koneksi.php';
 
 // Cek Library Midtrans
 $autoload_path = dirname(__FILE__) . '/../vendor/autoload.php';
-if (!file_exists($autoload_path)) {
-    ob_clean();
-    echo json_encode(['status' => 'error', 'message' => 'Library Midtrans hilang.']); exit;
-}
-require_once $autoload_path;
+if (file_exists($autoload_path)) { require_once $autoload_path; }
 
 header('Content-Type: application/json');
 
@@ -38,12 +34,9 @@ $nama = $koneksi->real_escape_string($input['nama_pelanggan']);
 $total = $input['total_harga'];
 $metode = $input['metode']; 
 $items = $input['items'];
+$uang_bayar = 0; $kembalian = 0;
 
-// Nilai default untuk uang & kembalian (Pelanggan belum bayar)
-$uang_bayar = 0;
-$kembalian = 0;
-
-// --- CEK TRANSAKSI PENDING (ANTI DOBEL) ---
+// 1. RESUME PENDING
 if ($metode == 'midtrans') {
     $cek = $koneksi->query("SELECT uuid, snap_token FROM transaksi WHERE meja_id='$meja_id' AND status_pembayaran='pending' AND total_harga='$total' AND metode_pembayaran='midtrans' LIMIT 1");
     if($cek->num_rows > 0){
@@ -54,6 +47,33 @@ if ($metode == 'midtrans') {
     }
 }
 
+// 2. VALIDASI MEJA (Anti Tabrakan)
+$cek_meja = $koneksi->query("SELECT status FROM meja WHERE id = '$meja_id'")->fetch_assoc();
+if ($cek_meja && $cek_meja['status'] == 'terisi') {
+    ob_clean();
+    echo json_encode(['status' => 'error', 'message' => 'Maaf, meja ini sedang digunakan transaksi lain.']); 
+    exit;
+}
+
+// 3. VALIDASI STOK
+foreach ($items as $item) {
+    $menu_id = $item['id'];
+    $qty_minta = $item['quantity']; // Perhatikan di JS Pelanggan pakai 'quantity' bukan 'qty'
+    
+    $cek_stok = $koneksi->query("SELECT nama_menu, stok FROM menu WHERE id = '$menu_id'")->fetch_assoc();
+    if ($cek_stok) {
+        if ($cek_stok['stok'] < $qty_minta) {
+            ob_clean();
+            echo json_encode([
+                'status' => 'error', 
+                'message' => "Stok habis untuk: " . $cek_stok['nama_menu'] . " (Sisa: " . $cek_stok['stok'] . ")"
+            ]); 
+            exit;
+        }
+    }
+}
+
+// 4. INSERT
 $uuid = sprintf('%04x%04x-%04x-%04x-%04x-%04x%04x%04x', mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0x0fff) | 0x4000, mt_rand(0, 0x3fff) | 0x8000, mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff));
 
 $status_bayar = 'pending';
@@ -79,24 +99,32 @@ if ($metode == 'midtrans') {
     try {
         $snap_token = \Midtrans\Snap::getSnapToken($params);
     } catch (Exception $e) {
-        ob_clean();
-        echo json_encode(['status' => 'error', 'message' => 'Midtrans Error: ' . $e->getMessage()]); exit;
+        ob_clean(); echo json_encode(['status' => 'error', 'message' => 'Midtrans Error: ' . $e->getMessage()]); exit;
     }
 }
 
-// INSERT DATABASE (SUDAH LENGKAP KOLOMNYA)
 $stmt = $koneksi->prepare("INSERT INTO transaksi (uuid, meja_id, nama_pelanggan, total_harga, uang_bayar, kembalian, status_pembayaran, metode_pembayaran, status_pesanan, snap_token, midtrans_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 $stmt->bind_param("sisdddsssss", $uuid, $meja_id, $nama, $total, $uang_bayar, $kembalian, $status_bayar, $metode, $status_pesanan, $snap_token, $midtrans_order_id);
 
 if ($stmt->execute()) {
     $trx_id = $koneksi->insert_id;
     $stmt_detail = $koneksi->prepare("INSERT INTO transaksi_detail (transaksi_id, menu_id, qty, harga_satuan, subtotal) VALUES (?, ?, ?, ?, ?)");
+    
+    // [BARU] PERSIAPAN QUERY KURANGI STOK
+    $stmt_stok = $koneksi->prepare("UPDATE menu SET stok = stok - ? WHERE id = ?");
+
     foreach ($items as $item) {
         $qty = $item['quantity']; 
         $harga = $item['price'];
         $subtotal = $harga * $qty;
+        
+        // 1. Simpan Detail
         $stmt_detail->bind_param("iiidd", $trx_id, $item['id'], $qty, $harga, $subtotal);
         $stmt_detail->execute();
+        
+        // 2. [BARU] KURANGI STOK
+        $stmt_stok->bind_param("ii", $qty, $item['id']);
+        $stmt_stok->execute();
     }
     $koneksi->query("UPDATE meja SET status = 'terisi' WHERE id = '$meja_id'");
 

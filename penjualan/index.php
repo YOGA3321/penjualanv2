@@ -154,35 +154,46 @@ $menus = $koneksi->query($sql_menu);
             </header>
 
             <div class="menu-grid" id="menuContainer">
-                <?php if($menus->num_rows > 0): ?>
-                    <?php while($m = $menus->fetch_assoc()): ?>
-                        <div class="menu-card" 
-                             data-id="<?= $m['id'] ?>" 
-                             data-name="<?= htmlspecialchars($m['nama_menu']) ?>" 
-                             data-price="<?= $m['harga'] ?>" 
-                             data-image="<?= !empty($m['gambar']) ? '../'.$m['gambar'] : '../assets/images/no-image.jpg' ?>">
+                <?php while($m = $menus->fetch_assoc()): ?>
+                    <?php 
+                        $habis = $m['stok'] <= 0;
+                        $class_card = $habis ? 'menu-card stok-habis' : 'menu-card';
+                        // Nonaktifkan tombol add jika habis
+                        $btn_state = $habis ? 'disabled' : '';
+                    ?>
+                    <div class="<?= $class_card ?>" 
+                        data-id="<?= $m['id'] ?>" 
+                        data-name="<?= htmlspecialchars($m['nama_menu']) ?>" 
+                        data-price="<?= $m['harga'] ?>" 
+                        data-image="<?= !empty($m['gambar']) ? '../'.$m['gambar'] : '../assets/images/no-image.jpg' ?>">
+                        
+                        <div class="position-relative">
+                            <img src="<?= !empty($m['gambar']) ? '../'.$m['gambar'] : '../assets/images/no-image.jpg' ?>" 
+                                alt="<?= $m['nama_menu'] ?>" class="menu-card-img">
                             
-                            <div class="position-relative">
-                                <img src="<?= !empty($m['gambar']) ? '../'.$m['gambar'] : '../assets/images/no-image.jpg' ?>" 
-                                     alt="<?= $m['nama_menu'] ?>" class="menu-card-img">
-                                <?php if($m['stok'] < 5): ?>
-                                    <span class="position-absolute top-0 end-0 badge bg-warning text-dark m-2">Sisa <?= $m['stok'] ?></span>
-                                <?php endif; ?>
-                            </div>
-
-                            <div class="menu-card-body">
-                                <small class="text-muted"><?= $m['nama_kategori'] ?></small>
-                                <h5 class="text-truncate" title="<?= $m['nama_menu'] ?>"><?= $m['nama_menu'] ?></h5>
-                                <p class="price">Rp <?= number_format($m['harga'], 0, ',', '.') ?></p>
-                            </div>
-                            <button class="btn-add-to-cart ripple-effect">+</button>
+                            <?php if($habis): ?>
+                                <div class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center" 
+                                    style="background: rgba(0,0,0,0.5); z-index: 5;">
+                                    <span class="badge bg-danger fs-5 px-3 py-2 shadow">HABIS</span>
+                                </div>
+                            <?php elseif($m['stok'] < 5): ?>
+                                <span class="position-absolute top-0 end-0 badge bg-warning text-dark m-2 shadow-sm">Sisa <?= $m['stok'] ?></span>
+                            <?php endif; ?>
                         </div>
-                    <?php endwhile; ?>
-                <?php else: ?>
-                    <div class="col-12 text-center py-5">
-                        <p class="text-muted">Belum ada menu tersedia.</p>
+
+                        <div class="menu-card-body">
+                            <small class="text-muted"><?= $m['nama_kategori'] ?></small>
+                            <h5 class="text-truncate" title="<?= $m['nama_menu'] ?>"><?= $m['nama_menu'] ?></h5>
+                            <p class="price">Rp <?= number_format($m['harga'], 0, ',', '.') ?></p>
+                        </div>
+                        
+                        <?php if(!$habis): ?>
+                            <button class="btn-add-to-cart ripple-effect">+</button>
+                        <?php else: ?>
+                            <button class="btn-add-to-cart bg-secondary" disabled>x</button>
+                        <?php endif; ?>
                     </div>
-                <?php endif; ?>
+                <?php endwhile; ?>
             </div>
         </main>
     </div>
@@ -244,6 +255,15 @@ $menus = $koneksi->query($sql_menu);
             }).then(() => { location.reload(); });
         });
     </script>
+    <style>
+        .stok-habis {
+            opacity: 0.7;
+            pointer-events: none; /* Mencegah klik apapun pada kartu */
+        }
+        .stok-habis img {
+            filter: grayscale(100%);
+        }
+    </style>
     <?php unset($_SESSION['force_reset_cart']); endif; ?>
 
 </body>

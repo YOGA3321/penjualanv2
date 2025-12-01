@@ -144,9 +144,77 @@ include '../layouts/admin/header.php';
     }
 
     function terimaPembayaran(id, total, nama) {
-        // ... (Kode terima pembayaran tunai sama seperti sebelumnya)
-        // Silakan copy dari kode sebelumnya jika perlu, atau gunakan placeholder ini
-        Swal.fire('Info', 'Gunakan logika terima tunai yang sudah ada.', 'info');
+        Swal.fire({
+            title: 'Konfirmasi Tunai',
+            html: `
+                <div class="text-start mb-3 bg-light p-3 rounded">
+                    <div class="d-flex justify-content-between mb-1"><span>Pelanggan:</span> <strong>${nama}</strong></div>
+                    <div class="d-flex justify-content-between"><span>Total Tagihan:</span> <strong class="text-primary fs-4">Rp ${parseInt(total).toLocaleString('id-ID')}</strong></div>
+                </div>
+                <div class="form-group text-start">
+                    <label class="fw-bold mb-1">Uang Diterima</label>
+                    <input type="number" id="cashInputAdmin" class="form-control form-control-lg fw-bold text-center" placeholder="0" min="0">
+                    <div class="mt-2 fw-bold text-center" id="changeDisplayAdmin">Kembalian: Rp 0</div>
+                </div>
+            `,
+            confirmButtonText: '<i class="fas fa-print me-1"></i> LUNAS & PROSES',
+            confirmButtonColor: '#198754',
+            showCancelButton: true,
+            didOpen: () => {
+                const input = document.getElementById('cashInputAdmin');
+                const display = document.getElementById('changeDisplayAdmin');
+                const btn = Swal.getConfirmButton();
+                
+                // Disable tombol confirm di awal
+                btn.disabled = true;
+                input.focus();
+                
+                input.addEventListener('input', () => {
+                    let bayar = parseInt(input.value) || 0;
+                    let kembali = bayar - total;
+                    if(kembali >= 0) {
+                        display.innerHTML = 'Kembalian: <span class="text-success fs-5">Rp ' + kembali.toLocaleString('id-ID') + '</span>';
+                        btn.disabled = false;
+                    } else {
+                        display.innerHTML = 'Kurang: <span class="text-danger fs-5">Rp ' + Math.abs(kembali).toLocaleString('id-ID') + '</span>';
+                        btn.disabled = true;
+                    }
+                });
+            },
+            preConfirm: () => {
+                let bayar = parseInt(document.getElementById('cashInputAdmin').value);
+                return { uang: bayar, kembali: bayar - total };
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Kirim ke API Action
+                const formData = new FormData();
+                formData.append('action', 'konfirmasi_bayar');
+                formData.append('id', id);
+                formData.append('uang_bayar', result.value.uang);
+                formData.append('kembalian', result.value.kembali);
+
+                fetch('api/transaksi_action.php', { method: 'POST', body: formData })
+                .then(res => res.json())
+                .then(data => {
+                    if(data.status === 'success') {
+                        Swal.fire({
+                            icon: 'success', 
+                            title: 'Berhasil!', 
+                            text: 'Pembayaran diterima. Pesanan masuk dapur.', 
+                            timer: 1500, 
+                            showConfirmButton: false
+                        });
+                        // Tidak perlu reload manual, SSE akan otomatis menghapus kartu ini
+                    } else {
+                        Swal.fire('Gagal', data.message, 'error');
+                    }
+                })
+                .catch(err => {
+                    Swal.fire('Error', 'Gagal menghubungi server', 'error');
+                });
+            }
+        });
     }
 
     document.addEventListener('DOMContentLoaded', startOrderStream);

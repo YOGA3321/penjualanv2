@@ -25,21 +25,41 @@ include '../layouts/admin/header.php';
             <div class="card-body" style="overflow-y: auto; max-height: 70vh;">
                 <div class="row g-3" id="menuContainerGrid">
                     <?php while($m = $menus->fetch_assoc()): ?>
-                    <div class="col-md-4 col-lg-3 menu-item-card" data-name="<?= strtolower($m['nama_menu']) ?>">
-                        <div class="card h-100 border pointer" onclick='addToCart(<?= json_encode($m) ?>)'>
-                            <?php if($m['gambar']): ?>
-                                <img src="../<?= $m['gambar'] ?>" class="card-img-top" style="height: 100px; object-fit: cover;">
-                            <?php else: ?>
-                                <div class="d-flex align-items-center justify-content-center bg-light" style="height: 100px;">
-                                    <i class="fas fa-utensils text-muted"></i>
+                        <?php 
+                            // Cek Stok
+                            $habis = $m['stok'] <= 0;
+                            $class_habis = $habis ? 'stok-habis' : ''; 
+                            $onclick = $habis ? '' : "onclick='addToCart(".json_encode($m).")'";
+                        ?>
+                        
+                        <div class="col-md-4 col-lg-3 menu-item-card" data-name="<?= strtolower($m['nama_menu']) ?>">
+                            <div class="card h-100 border pointer position-relative <?= $class_habis ?>" <?= $onclick ?>>
+                                
+                                <?php if($m['gambar']): ?>
+                                    <img src="../<?= $m['gambar'] ?>" class="card-img-top" style="height: 100px; object-fit: cover;">
+                                <?php else: ?>
+                                    <div class="d-flex align-items-center justify-content-center bg-light" style="height: 100px;">
+                                        <i class="fas fa-utensils text-muted"></i>
+                                    </div>
+                                <?php endif; ?>
+
+                                <?php if($habis): ?>
+                                    <div class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center" 
+                                        style="background: rgba(255,255,255,0.7); z-index: 10;">
+                                        <span class="badge bg-danger fs-6 shadow">HABIS</span>
+                                    </div>
+                                <?php else: ?>
+                                    <span class="position-absolute top-0 end-0 badge bg-warning text-dark m-1 shadow-sm" style="font-size: 0.6rem;">
+                                        Stok: <?= $m['stok'] ?>
+                                    </span>
+                                <?php endif; ?>
+
+                                <div class="card-body p-2 text-center">
+                                    <h6 class="mb-1 small fw-bold text-truncate"><?= $m['nama_menu'] ?></h6>
+                                    <span class="text-primary small fw-bold">Rp <?= number_format($m['harga'], 0, ',', '.') ?></span>
                                 </div>
-                            <?php endif; ?>
-                            <div class="card-body p-2 text-center">
-                                <h6 class="mb-1 small fw-bold text-truncate"><?= $m['nama_menu'] ?></h6>
-                                <span class="text-primary small fw-bold">Rp <?= number_format($m['harga'], 0, ',', '.') ?></span>
                             </div>
                         </div>
-                    </div>
                     <?php endwhile; ?>
                 </div>
             </div>
@@ -80,12 +100,20 @@ include '../layouts/admin/header.php';
     </div>
 </div>
 
+<style>
+    .stok-habis {
+        filter: grayscale(100%);
+        opacity: 0.6;
+        cursor: not-allowed !important;
+    }
+    .stok-habis:hover {
+        transform: none !important;
+        box-shadow: none !important;
+    }
+</style>
+
 <script>
-// --- LOGIKA JAVASCRIPT ---
-
 let cart = [];
-
-// Fitur Pencarian Menu
 document.getElementById('cariMenu').addEventListener('keyup', function() {
     let filter = this.value.toLowerCase();
     let items = document.querySelectorAll('.menu-item-card');
@@ -247,38 +275,29 @@ function kirimTransaksi(metode, total, uang_bayar, kembalian) {
     .then(data => {
         if(data.status === 'success') {
             
-            // --- JIKA METODE MIDTRANS / QRIS ---
+            // KASUS MIDTRANS
             if (metode === 'midtrans' && data.snap_token) {
                 Swal.close();
-                // Buka Popup Midtrans agar pelanggan bisa scan di layar kasir
-                // Pastikan script Midtrans Snap sudah di-load di <head> (nanti kita tambahkan)
                 window.snap.pay(data.snap_token, {
                     onSuccess: function(result){
-                        // Jika sukses bayar -> Redirect ke Struk
-                        window.location.href = '../penjualan/struk.php?uuid=' + data.uuid + '&print=true';
+                        suksesTanpaPrint("Pembayaran Lunas!");
                     },
                     onPending: function(result){
-                        Swal.fire('Pending', 'Menunggu pembayaran pelanggan...', 'info');
+                        Swal.fire('Pending', 'Menunggu pembayaran pelanggan di HP-nya.', 'info')
+                        .then(() => resetKasir()); 
                     },
                     onError: function(result){
                         Swal.fire('Error', 'Pembayaran gagal!', 'error');
                     },
                     onClose: function(){
-                        Swal.fire('Tutup', 'Jendela pembayaran ditutup. Cek status di Riwayat.', 'warning');
+                        Swal.fire('Ditutup', 'Jendela pembayaran ditutup.', 'warning');
                     }
                 });
             } 
-            // --- JIKA METODE TUNAI ---
+            // KASUS TUNAI
             else {
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Berhasil!',
-                    text: 'Kembalian: Rp ' + parseInt(kembalian).toLocaleString('id-ID'),
-                    timer: 2000,
-                    showConfirmButton: false
-                }).then(() => {
-                    window.location.href = '../penjualan/struk.php?uuid=' + data.uuid + '&print=true'; 
-                });
+                let pesan = 'Kembalian: Rp ' + parseInt(kembalian).toLocaleString('id-ID');
+                suksesTanpaPrint(pesan);
             }
 
         } else {
@@ -290,9 +309,31 @@ function kirimTransaksi(metode, total, uang_bayar, kembalian) {
         Swal.fire('Error', 'Terjadi kesalahan koneksi', 'error');
     });
 }
+
+function suksesTanpaPrint(pesan) {
+    Swal.fire({
+        icon: 'success',
+        title: 'Transaksi Berhasil',
+        text: pesan,
+        timer: 2000,
+        showConfirmButton: false
+    }).then(() => {
+        resetKasir(); // Langsung bersihkan layar tanpa pindah halaman
+    });
+}
+
+function resetKasir() {
+    cart = [];
+    renderCart();
+    // Reset input uang jika ada
+    const inputCash = document.getElementById('cashInput');
+    if(inputCash) inputCash.value = '';
+    // Jangan redirect, biarkan kasir tetap di halaman ini
+}
 </script>
 <script type="text/javascript"
     src="https://app.sandbox.midtrans.com/snap/snap.js"
     data-client-key="SB-Mid-client-m2n6kBqd8rsKrRST">
 </script>
+<iframe id="hiddenFrame" style="visibility: hidden; height: 0; width: 0; position: absolute;"></iframe>
 <?php include '../layouts/admin/footer.php'; ?>
