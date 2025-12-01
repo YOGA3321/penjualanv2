@@ -1,58 +1,51 @@
 <?php
 require_once '../../auth/koneksi.php';
 
-// Pastikan library Midtrans sudah ada nanti
-// require_once dirname(__FILE__) . '/../../vendor/autoload.php';
+// Pastikan library ada (jika pakai autoload composer di folder atas)
+$autoload = dirname(__FILE__) . '/../../vendor/autoload.php';
+if(file_exists($autoload)) require_once $autoload;
 
-// use Midtrans\Config;
-// use Midtrans\Notification;
-
-// Config::$serverKey = 'SB-Mid-server-xxxx'; // Sesuaikan key
-// Config::$isProduction = false;
+// Konfigurasi
+\Midtrans\Config::$serverKey = 'SB-Mid-server-p0J5Kw0tX_JHY_HoYJOQzYXQ'; 
+\Midtrans\Config::$isProduction = false;
 
 try {
-    // 1. Terima Data JSON (Dari Router Central)
     $json = file_get_contents('php://input');
     $notif = json_decode($json);
 
     if (!$notif) exit("No data");
 
     $transaction = $notif->transaction_status;
-    $type = $notif->payment_type;
     $order_id = $notif->order_id;
     $fraud = $notif->fraud_status;
     
-    // Ambil UUID Asli dari Custom Field
+    // Cari UUID dari custom_field atau parsing order_id
     $uuid_db = $notif->custom_field1 ?? null;
-
-    // Jika custom_field kosong, coba parsing manual dari order_id (RESTO-UUID-TIMESTAMP)
     if (!$uuid_db) {
-        $parts = explode('-', $order_id);
-        // Ini berisiko kalau UUID dipotong, tapi sebagai fallback
-        // Lebih baik mengandalkan custom_field1
+        $parts = explode('-', $order_id); // RESTO-uuid-time
         if (isset($parts[1])) { 
-            // Cari di DB transaksi yang uuid-nya *diawali* potongan ini
             $short = $koneksi->real_escape_string($parts[1]);
-            $q = $koneksi->query("SELECT uuid FROM transaksi WHERE uuid LIKE '$short%' LIMIT 1");
+            $q = $koneksi->query("SELECT uuid, id, meja_id FROM transaksi WHERE uuid LIKE '$short%' LIMIT 1");
             if ($row = $q->fetch_assoc()) {
                 $uuid_db = $row['uuid'];
+                $trx_id_db = $row['id'];
+                $meja_id_db = $row['meja_id'];
             }
         }
+    } else {
+        // Ambil data ID dan Meja untuk keperluan restore
+        $q = $koneksi->query("SELECT id, meja_id FROM transaksi WHERE uuid = '$uuid_db'");
+        $row = $q->fetch_assoc();
+        $trx_id_db = $row['id'];
+        $meja_id_db = $row['meja_id'];
     }
 
-    if (!$uuid_db) {
-        http_response_code(404);
-        exit("Transaction not found in DB");
-    }
+    if (!$uuid_db) { http_response_code(404); exit("Transaction not found"); }
 
-    // 2. Tentukan Status
+    // Tentukan Status
     $status_db = null;
     if ($transaction == 'capture') {
-        if ($fraud == 'challenge') {
-            $status_db = 'pending';
-        } else {
-            $status_db = 'settlement';
-        }
+        $status_db = ($fraud == 'challenge') ? 'pending' : 'settlement';
     } else if ($transaction == 'settlement') {
         $status_db = 'settlement';
     } else if ($transaction == 'pending') {
@@ -61,15 +54,31 @@ try {
         $status_db = 'cancel';
     }
 
-    // 3. Update Database
+    // --- PROSES UPDATE ---
+
     if ($status_db == 'settlement') {
-        // Jika LUNAS: Update Status Pembayaran & Status Pesanan (Masuk Dapur)
-        $koneksi->query("UPDATE transaksi SET 
-                         status_pembayaran = 'settlement', 
-                         status_pesanan = 'diproses' 
-                         WHERE uuid = '$uuid_db'");
-    } else if ($status_db == 'cancel') {
+        $koneksi->query("UPDATE transaksi SET status_pembayaran = 'settlement', status_pesanan = 'diproses' WHERE uuid = '$uuid_db'");
+    } 
+    
+    else if ($status_db == 'cancel') {
+        // 1. Update Transaksi
         $koneksi->query("UPDATE transaksi SET status_pembayaran = 'cancel', status_pesanan = 'cancel' WHERE uuid = '$uuid_db'");
+        
+        // 2. Kembalikan Stok
+        if(isset($trx_id_db)) {
+            $details = $koneksi->query("SELECT menu_id, qty FROM transaksi_detail WHERE transaksi_id = '$trx_id_db'");
+            while($d = $details->fetch_assoc()) {
+                $koneksi->query("UPDATE menu SET stok = stok + ".$d['qty']." WHERE id = '".$d['menu_id']."'");
+            }
+        }
+
+        // 3. Reset Meja (Jika kosong)
+        if(isset($meja_id_db)) {
+            $cek_aktif = $koneksi->query("SELECT id FROM transaksi WHERE meja_id = '$meja_id_db' AND status_pesanan NOT IN ('selesai', 'cancel') AND id != '$trx_id_db'");
+            if($cek_aktif->num_rows == 0) {
+                $koneksi->query("UPDATE meja SET status = 'kosong' WHERE id = '$meja_id_db'");
+            }
+        }
     }
 
     http_response_code(200);

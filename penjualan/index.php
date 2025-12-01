@@ -158,8 +158,6 @@ $menus = $koneksi->query($sql_menu);
                     <?php 
                         $habis = $m['stok'] <= 0;
                         $class_card = $habis ? 'menu-card stok-habis' : 'menu-card';
-                        // Nonaktifkan tombol add jika habis
-                        $btn_state = $habis ? 'disabled' : '';
                     ?>
                     <div class="<?= $class_card ?>" 
                         data-id="<?= $m['id'] ?>" 
@@ -176,8 +174,10 @@ $menus = $koneksi->query($sql_menu);
                                     style="background: rgba(0,0,0,0.5); z-index: 5;">
                                     <span class="badge bg-danger fs-5 px-3 py-2 shadow">HABIS</span>
                                 </div>
-                            <?php elseif($m['stok'] < 5): ?>
-                                <span class="position-absolute top-0 end-0 badge bg-warning text-dark m-2 shadow-sm">Sisa <?= $m['stok'] ?></span>
+                            <?php else: ?>
+                                <span class="position-absolute top-0 end-0 badge bg-success text-white m-2 shadow-sm">
+                                    <i class="fas fa-check-circle me-1"></i> Tersedia
+                                </span>
                             <?php endif; ?>
                         </div>
 

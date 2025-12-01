@@ -34,10 +34,12 @@ include '../layouts/admin/header.php';
     let orderSource = null;
     let lastCount = 0;
 
+    // --- SSE (REALTIME) ---
     function startOrderStream() {
         if (orderSource) orderSource.close();
         
-        orderSource = new EventSource(`api/sse_order.php?view_cabang=<?= $target_cabang ?>`);
+        // Tambahkan timestamp agar browser tidak cache request SSE
+        orderSource = new EventSource(`api/sse_order.php?view_cabang=<?= $target_cabang ?>&t=${new Date().getTime()}`);
 
         orderSource.onmessage = function(event) {
             const result = JSON.parse(event.data);
@@ -50,7 +52,7 @@ include '../layouts/admin/header.php';
                 lastCount = result.data.length;
 
                 if(result.data.length === 0) {
-                    container.innerHTML = `<div class="col-12 text-center py-5 text-muted"><i class="fas fa-check-circle fa-3x mb-3"></i><h5>Tidak ada pesanan baru</h5></div>`;
+                    container.innerHTML = `<div class="col-12 text-center py-5 text-muted"><i class="fas fa-clipboard-check fa-3x mb-3"></i><h5>Tidak ada pesanan baru</h5></div>`;
                     return;
                 }
 
@@ -61,25 +63,29 @@ include '../layouts/admin/header.php';
                         itemList += `<li class="d-flex justify-content-between small border-bottom py-1"><span>${item.nama_menu}</span> <span class="fw-bold">x${item.qty}</span></li>`;
                     });
 
-                    let actionButtons = '';
-                    let badgeMetode = '';
+                    let badge = '';
+                    let buttons = '';
 
-                    // === LOGIKA TAMPILAN ===
-                    if(trx.metode_pembayaran === 'tunai') {
-                        badgeMetode = '<span class="badge bg-success mb-2"><i class="fas fa-money-bill-wave me-1"></i> TUNAI</span>';
-                        actionButtons = `
-                            <button class="btn btn-success w-100 fw-bold shadow-sm mb-2" onclick="terimaPembayaran('${trx.id}', ${trx.total_harga}, '${trx.nama_pelanggan}')">
-                                <i class="fas fa-hand-holding-usd me-1"></i> Terima Uang
-                            </button>`;
-                    } else if (trx.metode_pembayaran === 'midtrans') {
-                        badgeMetode = '<span class="badge bg-info text-dark mb-2"><i class="fas fa-qrcode me-1"></i> MIDTRANS</span>';
-                        actionButtons = `
+                    // LOGIKA TAMPILAN
+                    if (trx.metode_pembayaran === 'midtrans') {
+                        badge = '<span class="badge bg-info text-dark mb-2"><i class="fas fa-qrcode me-1"></i> MIDTRANS</span>';
+                        buttons = `
                             <div class="alert alert-primary small mb-2 p-2 text-center">Status: <b>Pending</b></div>
                             <button class="btn btn-primary w-100 fw-bold shadow-sm mb-2" onclick="resumePembayaran('${trx.snap_token}', '${trx.uuid}')">
                                 <i class="fas fa-qrcode me-1"></i> Buka QRIS / Bayar
                             </button>
                             <button class="btn btn-light btn-sm w-100 text-muted" onclick="cekStatusManual('${trx.uuid}')">
-                                <i class="fas fa-sync-alt me-1"></i> Cek Status
+                                <i class="fas fa-sync-alt me-1"></i> Cek Status (Sync)
+                            </button>`;
+                    } else {
+                        badge = '<span class="badge bg-success mb-2"><i class="fas fa-money-bill-wave me-1"></i> TUNAI</span>';
+                        buttons = `
+                            <div class="alert alert-warning small p-2 mb-2 text-center"><i class="fas fa-hand-holding-usd"></i> Terima pembayaran</div>
+                            <button class="btn btn-success w-100 fw-bold shadow-sm mb-2" onclick="terimaPembayaran('${trx.id}', ${trx.total_harga}, '${trx.nama_pelanggan}')">
+                                <i class="fas fa-check me-1"></i> Terima Uang
+                            </button>
+                             <button class="btn btn-outline-danger w-100 btn-sm" onclick="batalkanPesanan('${trx.id}')">
+                                <i class="fas fa-times me-1"></i> Tolak
                             </button>`;
                     }
 
@@ -92,12 +98,12 @@ include '../layouts/admin/header.php';
                             </div>
                             <div class="card-body">
                                 <h5 class="card-title fw-bold mb-1">${trx.nama_pelanggan}</h5>
-                                ${badgeMetode}
-                                <ul class="list-unstyled bg-light p-3 rounded mb-3" style="max-height:150px; overflow-y:auto;">${itemList}</ul>
+                                <div>${badge}</div>
+                                <ul class="list-unstyled bg-light p-3 rounded mb-3 flex-grow-1" style="max-height:150px; overflow-y:auto;">${itemList}</ul>
                                 <div class="d-flex justify-content-between fw-bold fs-5 mb-3 border-top pt-2">
                                     <span>Total</span> <span class="text-primary">Rp ${parseInt(trx.total_harga).toLocaleString('id-ID')}</span>
                                 </div>
-                                ${actionButtons}
+                                <div class="mt-auto">${buttons}</div>
                             </div>
                         </div>
                     </div>`;
@@ -105,116 +111,129 @@ include '../layouts/admin/header.php';
                 container.innerHTML = html;
             }
         };
+        
+        // Auto reconnect jika putus
+        orderSource.onerror = function() {
+            orderSource.close();
+            setTimeout(startOrderStream, 5000);
+        };
     }
 
-    // --- FUNGSI RESUME & AUTO CHECK ---
+    // --- FUNGSI RESUME PEMBAYARAN ---
     function resumePembayaran(token, uuid) {
-        if(!token || token === 'null') { return Swal.fire('Error', 'Token tidak valid.', 'error'); }
+        if(!token || token === 'null') { 
+            // Jika token hilang/null, coba cek status dulu siapa tau expired
+            cekStatusManual(uuid);
+            return; 
+        }
 
         window.snap.pay(token, {
-            onSuccess: function(result){ cekStatusManual(uuid, true); },
-            onPending: function(result){ cekStatusManual(uuid, true); },
-            onError: function(result){ Swal.fire('Gagal', 'Pembayaran gagal.', 'error'); },
+            onSuccess: function(result){ 
+                // Bayar Sukses -> Cek & Update DB -> Reload
+                cekStatusManual(uuid, true); 
+            },
+            onPending: function(result){ 
+                // Masih Pending -> Cek aja
+                cekStatusManual(uuid, true); 
+            },
+            onError: function(result){ 
+                // [PENTING] Jika Midtrans Error (Misal Token Expired), langsung cek status ke server
+                // Agar server mendeteksi 'expire' dan mengubah status jadi 'cancel'
+                console.log("Midtrans Error/Expired", result);
+                cekStatusManual(uuid, true); 
+            },
             onClose: function(){ 
-                // SAAT DI-CLOSE: Cek otomatis ke server (Active Inquiry)
+                // Saat ditutup, paksa cek ke server (Active Inquiry)
                 console.log('Popup closed, checking status...');
                 cekStatusManual(uuid, true); 
             }
         });
     }
 
+    // --- FUNGSI SINKRONISASI STATUS (MAGIC FUNCTION) ---
     function cekStatusManual(uuid, silent = false) {
-        if(!silent) Swal.fire({title: 'Sinkronisasi...', didOpen: () => Swal.showLoading()});
+        if(!silent) Swal.fire({title: 'Sinkronisasi Data...', text: 'Menghubungi Server Midtrans...', didOpen: () => Swal.showLoading()});
         
-        // Panggil API Check Status (yang punya fitur cek ke Midtrans Server)
-        fetch(`../penjualan/check_status_api.php?uuid=${uuid}`)
+        // Panggil API Check Status (Backend akan nanya ke Midtrans)
+        fetch(`../penjualan/check_status_api.php?uuid=${uuid}&t=${new Date().getTime()}`)
         .then(res => res.json())
         .then(data => {
             if(data.status === 'success') {
+                // KASUS 1: SUDAH LUNAS (SETTLEMENT)
                 if(data.data.status_pembayaran === 'settlement') {
                     if(!silent) Swal.close();
-                    Swal.fire({icon: 'success', title: 'LUNAS!', text: 'Pesanan masuk dapur.', timer: 1500, showConfirmButton: false});
-                } else if (data.data.status_pembayaran === 'cancel') {
-                    if(!silent) Swal.fire('Batal', 'Transaksi kadaluarsa.', 'error');
-                } else {
-                    if(!silent) Swal.fire('Pending', 'Menunggu pembayaran.', 'info');
+                    Swal.fire({
+                        icon: 'success', 
+                        title: 'LUNAS!', 
+                        text: 'Pembayaran terkonfirmasi. Masuk dapur.', 
+                        timer: 1500, 
+                        showConfirmButton: false
+                    }).then(() => {
+                        // Reload halaman agar data hilang dari list
+                        location.reload(); 
+                    });
+                } 
+                // KASUS 2: KADALUARSA / BATAL (CANCEL)
+                else if (data.data.status_pembayaran === 'cancel' || data.data.status_pembayaran === 'expire') {
+                    if(!silent) Swal.close();
+                    Swal.fire({
+                        icon: 'error', 
+                        title: 'KADALUARSA', 
+                        text: 'Token pembayaran sudah expired. Transaksi dibatalkan.',
+                        timer: 2000
+                    }).then(() => {
+                        // Reload halaman agar data hilang dari list
+                        location.reload();
+                    });
+                } 
+                // KASUS 3: MASIH PENDING
+                else {
+                    if(!silent) Swal.fire('Info', 'Status masih Menunggu Pembayaran (Pending).', 'info');
                 }
+            } else {
+                if(!silent) Swal.fire('Error', data.message, 'error');
+            }
+        })
+        .catch(err => {
+            if(!silent) Swal.fire('Error', 'Gagal koneksi ke server.', 'error');
+        });
+    }
+
+    // ... (Fungsi terimaPembayaran Tunai tetap sama) ...
+    function terimaPembayaran(id, total, nama) {
+        Swal.fire({
+            title: 'Konfirmasi Tunai',
+            html: `<div class="text-center mb-3">Terima uang tunai dari <b>${nama}</b><br><h3 class="text-success mt-2">Rp ${parseInt(total).toLocaleString('id-ID')}</h3></div>
+                   <input type="number" id="cashInputAdmin" class="form-control text-center fs-4" placeholder="Input Uang">`,
+            confirmButtonText: 'PROSES LUNAS',
+            showCancelButton: true,
+            preConfirm: () => {
+                const val = document.getElementById('cashInputAdmin').value;
+                if(!val || val < total) return Swal.showValidationMessage('Uang kurang!');
+                return val;
+            }
+        }).then((res) => {
+            if(res.isConfirmed) {
+                let bayar = res.value;
+                let kembali = bayar - total;
+                let formData = new FormData();
+                formData.append('action', 'konfirmasi_bayar');
+                formData.append('id', id);
+                formData.append('uang_bayar', bayar);
+                formData.append('kembalian', kembali);
+                
+                fetch('api/transaksi_action.php', { method: 'POST', body: formData })
+                .then(r => r.json()).then(d => {
+                    if(d.status === 'success') {
+                        Swal.fire('Sukses', 'Masuk Dapur', 'success').then(() => location.reload());
+                    }
+                });
             }
         });
     }
 
-    function terimaPembayaran(id, total, nama) {
-        Swal.fire({
-            title: 'Konfirmasi Tunai',
-            html: `
-                <div class="text-start mb-3 bg-light p-3 rounded">
-                    <div class="d-flex justify-content-between mb-1"><span>Pelanggan:</span> <strong>${nama}</strong></div>
-                    <div class="d-flex justify-content-between"><span>Total Tagihan:</span> <strong class="text-primary fs-4">Rp ${parseInt(total).toLocaleString('id-ID')}</strong></div>
-                </div>
-                <div class="form-group text-start">
-                    <label class="fw-bold mb-1">Uang Diterima</label>
-                    <input type="number" id="cashInputAdmin" class="form-control form-control-lg fw-bold text-center" placeholder="0" min="0">
-                    <div class="mt-2 fw-bold text-center" id="changeDisplayAdmin">Kembalian: Rp 0</div>
-                </div>
-            `,
-            confirmButtonText: '<i class="fas fa-print me-1"></i> LUNAS & PROSES',
-            confirmButtonColor: '#198754',
-            showCancelButton: true,
-            didOpen: () => {
-                const input = document.getElementById('cashInputAdmin');
-                const display = document.getElementById('changeDisplayAdmin');
-                const btn = Swal.getConfirmButton();
-                
-                // Disable tombol confirm di awal
-                btn.disabled = true;
-                input.focus();
-                
-                input.addEventListener('input', () => {
-                    let bayar = parseInt(input.value) || 0;
-                    let kembali = bayar - total;
-                    if(kembali >= 0) {
-                        display.innerHTML = 'Kembalian: <span class="text-success fs-5">Rp ' + kembali.toLocaleString('id-ID') + '</span>';
-                        btn.disabled = false;
-                    } else {
-                        display.innerHTML = 'Kurang: <span class="text-danger fs-5">Rp ' + Math.abs(kembali).toLocaleString('id-ID') + '</span>';
-                        btn.disabled = true;
-                    }
-                });
-            },
-            preConfirm: () => {
-                let bayar = parseInt(document.getElementById('cashInputAdmin').value);
-                return { uang: bayar, kembali: bayar - total };
-            }
-        }).then((result) => {
-            if (result.isConfirmed) {
-                // Kirim ke API Action
-                const formData = new FormData();
-                formData.append('action', 'konfirmasi_bayar');
-                formData.append('id', id);
-                formData.append('uang_bayar', result.value.uang);
-                formData.append('kembalian', result.value.kembali);
-
-                fetch('api/transaksi_action.php', { method: 'POST', body: formData })
-                .then(res => res.json())
-                .then(data => {
-                    if(data.status === 'success') {
-                        Swal.fire({
-                            icon: 'success', 
-                            title: 'Berhasil!', 
-                            text: 'Pembayaran diterima. Pesanan masuk dapur.', 
-                            timer: 1500, 
-                            showConfirmButton: false
-                        });
-                        // Tidak perlu reload manual, SSE akan otomatis menghapus kartu ini
-                    } else {
-                        Swal.fire('Gagal', data.message, 'error');
-                    }
-                })
-                .catch(err => {
-                    Swal.fire('Error', 'Gagal menghubungi server', 'error');
-                });
-            }
-        });
+    function batalkanPesanan(id) {
+        Swal.fire('Info', 'Fitur tolak belum aktif.', 'info');
     }
 
     document.addEventListener('DOMContentLoaded', startOrderStream);

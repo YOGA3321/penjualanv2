@@ -22,7 +22,9 @@ class ComposerStaticInitf7e9b5f946f7ec9110439346d71c9f07
         ),
         'S' => 
         array (
+            'Svg\\' => 4,
             'SnapBi\\' => 7,
+            'Sabberworm\\CSS\\' => 15,
         ),
         'P' => 
         array (
@@ -36,6 +38,7 @@ class ComposerStaticInitf7e9b5f946f7ec9110439346d71c9f07
         array (
             'Monolog\\' => 8,
             'Midtrans\\' => 9,
+            'Masterminds\\' => 12,
         ),
         'G' => 
         array (
@@ -48,7 +51,12 @@ class ComposerStaticInitf7e9b5f946f7ec9110439346d71c9f07
         ),
         'F' => 
         array (
+            'FontLib\\' => 8,
             'Firebase\\JWT\\' => 13,
+        ),
+        'D' => 
+        array (
+            'Dompdf\\' => 7,
         ),
     );
 
@@ -57,9 +65,17 @@ class ComposerStaticInitf7e9b5f946f7ec9110439346d71c9f07
         array (
             0 => __DIR__ . '/..' . '/phpseclib/phpseclib/phpseclib',
         ),
+        'Svg\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/dompdf/php-svg-lib/src/Svg',
+        ),
         'SnapBi\\' => 
         array (
             0 => __DIR__ . '/..' . '/midtrans/midtrans-php/SnapBi',
+        ),
+        'Sabberworm\\CSS\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/sabberworm/php-css-parser/src',
         ),
         'Psr\\Log\\' => 
         array (
@@ -90,6 +106,10 @@ class ComposerStaticInitf7e9b5f946f7ec9110439346d71c9f07
         array (
             0 => __DIR__ . '/..' . '/midtrans/midtrans-php/Midtrans',
         ),
+        'Masterminds\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/masterminds/html5/src',
+        ),
         'GuzzleHttp\\Psr7\\' => 
         array (
             0 => __DIR__ . '/..' . '/guzzlehttp/psr7/src',
@@ -114,14 +134,23 @@ class ComposerStaticInitf7e9b5f946f7ec9110439346d71c9f07
         array (
             0 => __DIR__ . '/..' . '/google/apiclient/src',
         ),
+        'FontLib\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/dompdf/php-font-lib/src/FontLib',
+        ),
         'Firebase\\JWT\\' => 
         array (
             0 => __DIR__ . '/..' . '/firebase/php-jwt/src',
+        ),
+        'Dompdf\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/dompdf/dompdf/src',
         ),
     );
 
     public static $classMap = array (
         'Composer\\InstalledVersions' => __DIR__ . '/..' . '/composer/InstalledVersions.php',
+        'Dompdf\\Cpdf' => __DIR__ . '/..' . '/dompdf/dompdf/lib/Cpdf.php',
         'Google_AccessToken_Revoke' => __DIR__ . '/..' . '/google/apiclient/src/aliases.php',
         'Google_AccessToken_Verify' => __DIR__ . '/..' . '/google/apiclient/src/aliases.php',
         'Google_AuthHandler_AuthHandlerFactory' => __DIR__ . '/..' . '/google/apiclient/src/aliases.php',

@@ -69,18 +69,25 @@ include '../layouts/admin/header.php';
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-body">
         <form method="GET" class="row align-items-end g-3">
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <label class="form-label small fw-bold text-muted">Dari Tanggal</label>
                 <input type="date" name="start" class="form-control" value="<?= $start_date ?>">
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <label class="form-label small fw-bold text-muted">Sampai Tanggal</label>
                 <input type="date" name="end" class="form-control" value="<?= $end_date ?>">
             </div>
-            <div class="col-md-4">
+            
+            <div class="col-md-3">
                 <button type="submit" class="btn btn-primary w-100 fw-bold">
-                    <i class="fas fa-filter me-2"></i> Tampilkan Data
+                    <i class="fas fa-filter me-2"></i> Tampilkan
                 </button>
+            </div>
+
+            <div class="col-md-3">
+                <a href="laporan_pdf.php?start=<?= $start_date ?>&end=<?= $end_date ?>" target="_blank" class="btn btn-danger w-100 fw-bold">
+                    <i class="fas fa-file-pdf me-2"></i> Download PDF
+                </a>
             </div>
         </form>
     </div>

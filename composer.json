@@ -1,6 +1,7 @@
 {
     "require": {
         "midtrans/midtrans-php": "^2.6",
-        "google/apiclient": "^2.18"
+        "google/apiclient": "^2.18",
+        "dompdf/dompdf": "^3.1"
     }
 }
