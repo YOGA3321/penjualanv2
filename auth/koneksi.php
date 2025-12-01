@@ -1,5 +1,5 @@
 <?php
-// DETEKSI OTOMATIS: Apakah di Localhost atau Live Server?
+date_default_timezone_set('Asia/Jakarta');
 $whitelist = array('127.0.0.1', '::1', 'localhost', '192.168.0.192');
 
 if(in_array($_SERVER['REMOTE_ADDR'], $whitelist)){

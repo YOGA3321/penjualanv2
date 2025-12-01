@@ -1,6 +1,8 @@
 <?php
-// check_status_api.php
+// Matikan error HTML agar JSON tidak rusak
 ini_set('display_errors', 0);
+error_reporting(E_ALL);
+
 require_once '../auth/koneksi.php';
 require_once dirname(__FILE__) . '/../vendor/autoload.php'; 
 
@@ -22,18 +24,27 @@ if ($trx['status_pembayaran'] == 'settlement' || $trx['status_pembayaran'] == 'c
     exit;
 }
 
-// 3. Jika Masih PENDING & MIDTRANS -> Cek ke Midtrans Server
-if ($trx['status_pembayaran'] == 'pending' && $trx['metode_pembayaran'] == 'midtrans' && !empty($trx['midtrans_id'])) {
+// 3. LOGIKA SINKRONISASI MIDTRANS
+if ($trx['status_pembayaran'] == 'pending' && $trx['metode_pembayaran'] == 'midtrans') {
     
+    // Cek apakah midtrans_id ada?
+    if (empty($trx['midtrans_id'])) {
+        // Jika kosong, berarti transaksi lama (sebelum update DB). Tidak bisa dicek.
+        echo json_encode(['status' => 'success', 'data' => $trx, 'info' => 'Old transaction (No Midtrans ID)']);
+        exit;
+    }
+
     // Konfigurasi Server Key
     \Midtrans\Config::$serverKey = 'SB-Mid-server-p0J5Kw0tX_JHY_HoYJOQzYXQ'; 
     \Midtrans\Config::$isProduction = false;
 
     try {
+        // TANYA STATUS KE MIDTRANS
         $status_midtrans = \Midtrans\Transaction::status($trx['midtrans_id']);
         $transaction_status = $status_midtrans->transaction_status;
         $fraud_status = $status_midtrans->fraud_status;
 
+        // Tentukan Status Baru
         $new_status = 'pending';
         if ($transaction_status == 'capture') {
             $new_status = ($fraud_status == 'challenge') ? 'pending' : 'settlement';
@@ -43,43 +54,67 @@ if ($trx['status_pembayaran'] == 'pending' && $trx['metode_pembayaran'] == 'midt
             $new_status = 'cancel';
         }
 
-        // --- UPDATE DATABASE ---
-
-        if ($new_status == 'settlement') {
-            // LUNAS: Update jadi diproses
-            $koneksi->query("UPDATE transaksi SET status_pembayaran = 'settlement', status_pesanan = 'diproses' WHERE uuid = '$uuid'");
-            $trx['status_pembayaran'] = 'settlement';
-        } 
+        // UPDATE DATABASE SESUAI STATUS BARU
+        updateStatusTransaksi($new_status, $uuid, $trx, $koneksi);
         
-        else if ($new_status == 'cancel') {
-            // [LOGIKA PEMBATALAN OTOMATIS]
-            
-            // A. Update Status Transaksi jadi Cancel
-            $koneksi->query("UPDATE transaksi SET status_pembayaran = 'cancel', status_pesanan = 'cancel' WHERE uuid = '$uuid'");
-            
-            // B. Kembalikan Stok (Loop item di transaksi ini)
-            $details = $koneksi->query("SELECT menu_id, qty FROM transaksi_detail WHERE transaksi_id = '".$trx['id']."'");
-            while($d = $details->fetch_assoc()) {
-                $koneksi->query("UPDATE menu SET stok = stok + ".$d['qty']." WHERE id = '".$d['menu_id']."'");
-            }
-
-            // C. Kosongkan Meja (Hanya jika tidak ada pesanan aktif lain di meja tersebut)
-            $meja_id = $trx['meja_id'];
-            // Cek apakah ada transaksi lain di meja ini yang statusnya BUKAN (selesai/cancel) dan BUKAN transaksi ini
-            $cek_aktif = $koneksi->query("SELECT id FROM transaksi WHERE meja_id = '$meja_id' AND status_pesanan NOT IN ('selesai', 'cancel') AND id != '".$trx['id']."'");
-            
-            if($cek_aktif->num_rows == 0) {
-                // Tidak ada pesanan lain, meja jadi kosong
-                $koneksi->query("UPDATE meja SET status = 'kosong' WHERE id = '$meja_id'");
-            }
-
-            $trx['status_pembayaran'] = 'cancel';
-        }
+        // Refresh data untuk dikirim balik ke frontend
+        $trx['status_pembayaran'] = $new_status;
 
     } catch (Exception $e) {
-        // Error koneksi midtrans, biarkan data lama
+        // [PENANGANAN ERROR SPESIFIK]
+        
+        // Kasus 404: Transaksi tidak ditemukan di Midtrans
+        // Artinya: User buka popup, tapi TIDAK pilih metode pembayaran, lalu menutup/expired.
+        if ($e->getCode() == 404) {
+            
+            // Hitung selisih waktu dari pesanan dibuat
+            $created_time = strtotime($trx['created_at']);
+            $current_time = time();
+            $diff_minutes = ($current_time - $created_time) / 60;
+
+            // Jika sudah lewat 6 menit (5 menit + 1 menit toleransi)
+            if ($diff_minutes > 6) {
+                // ANGGAP EXPIRED/CANCEL SECARA PAKSA
+                updateStatusTransaksi('cancel', $uuid, $trx, $koneksi);
+                $trx['status_pembayaran'] = 'cancel';
+            } else {
+                // Masih dalam toleransi waktu, biarkan PENDING
+                // (Mungkin user baru saja buka popup)
+            }
+        } else {
+            // Error lain (Koneksi putus/Server Key salah)
+            // Kembalikan pesan error agar bisa dibaca di Console/SweetAlert
+            echo json_encode(['status' => 'error', 'message' => 'Midtrans Error: ' . $e->getMessage()]);
+            exit;
+        }
     }
 }
 
 echo json_encode(['status' => 'success', 'data' => $trx]);
+
+// --- FUNGSI BANTUAN UPDATE DB & STOK ---
+function updateStatusTransaksi($new_status, $uuid, $trx_data, $koneksi) {
+    if ($new_status == 'settlement') {
+        $koneksi->query("UPDATE transaksi SET status_pembayaran = 'settlement', status_pesanan = 'diproses' WHERE uuid = '$uuid'");
+    } 
+    else if ($new_status == 'cancel') {
+        // 1. Update Status
+        $koneksi->query("UPDATE transaksi SET status_pembayaran = 'cancel', status_pesanan = 'cancel' WHERE uuid = '$uuid'");
+        
+        // 2. Kembalikan Stok (Hanya jika belum dikembalikan)
+        if ($trx_data['status_pembayaran'] != 'cancel') {
+            $details = $koneksi->query("SELECT menu_id, qty FROM transaksi_detail WHERE transaksi_id = '".$trx_data['id']."'");
+            while($d = $details->fetch_assoc()) {
+                $koneksi->query("UPDATE menu SET stok = stok + ".$d['qty']." WHERE id = '".$d['menu_id']."'");
+            }
+
+            // 3. Kosongkan Meja (Jika tidak ada pesanan aktif lain)
+            $meja_id = $trx_data['meja_id'];
+            $cek_aktif = $koneksi->query("SELECT id FROM transaksi WHERE meja_id = '$meja_id' AND status_pesanan NOT IN ('selesai', 'cancel') AND id != '".$trx_data['id']."'");
+            if($cek_aktif->num_rows == 0) {
+                $koneksi->query("UPDATE meja SET status = 'kosong' WHERE id = '$meja_id'");
+            }
+        }
+    }
+}
 ?>
