@@ -233,7 +233,31 @@ include '../layouts/admin/header.php';
     }
 
     function batalkanPesanan(id) {
-        Swal.fire('Info', 'Fitur tolak belum aktif.', 'info');
+        Swal.fire({
+            title: 'Tolak Pesanan?', 
+            text: "Stok akan dikembalikan dan meja dikosongkan.", 
+            icon: 'warning',
+            showCancelButton: true, 
+            confirmButtonColor: '#d33', 
+            confirmButtonText: 'Ya, Tolak',
+            cancelButtonText: 'Batal'
+        }).then((res) => {
+            if(res.isConfirmed) {
+                const formData = new FormData();
+                formData.append('action', 'tolak_pesanan'); // Panggil aksi baru
+                formData.append('id', id);
+
+                fetch('api/transaksi_action.php', { method: 'POST', body: formData })
+                .then(r => r.json())
+                .then(d => {
+                    if(d.status === 'success') {
+                        Swal.fire('Ditolak', d.message, 'success').then(() => location.reload());
+                    } else {
+                        Swal.fire('Gagal', d.message, 'error');
+                    }
+                });
+            }
+        });
     }
 
     document.addEventListener('DOMContentLoaded', startOrderStream);
