@@ -2,49 +2,45 @@
 session_start();
 require_once '../../auth/koneksi.php';
 
-// 1. SETTING HEADER AGAR TIDAK DI-CACHE CLOUDFLARE/HOSTING
+// HEADER WAJIB HOSTING
 header('Content-Type: text/event-stream');
 header('Cache-Control: no-cache');
 header('Connection: keep-alive');
-header('X-Accel-Buffering: no'); // KHUSUS NGINX/LITESPEED (HOSTING)
+header('X-Accel-Buffering: no'); // Nginx/Litespeed
 
-// Matikan kompresi
-if (function_exists('apache_setenv')) { @apache_setenv('no-gzip', 1); }
 @ini_set('zlib.output_compression', 0);
 @ini_set('implicit_flush', 1);
-for ($i = 0; $i < ob_get_level(); $i++) { ob_end_flush(); }
+while (ob_get_level() > 0) { ob_end_flush(); }
 ob_implicit_flush(1);
 
-// 2. AMBIL SESI LALU TUTUP (AGAR TIDAK LOCKING)
 $cabang_id = $_SESSION['cabang_id'] ?? 0;
 $level = $_SESSION['level'] ?? '';
+// Mode lihat cabang
 if ($level == 'admin' && isset($_SESSION['view_cabang_id'])) {
     $cabang_id = $_SESSION['view_cabang_id'];
 }
-session_write_close(); // PENTING: Tutup sesi biar halaman lain bisa dibuka
+session_write_close();
 
-// 3. KIRIM "PANCINGAN" DATA KOSONG
-// Beberapa hosting nunggu 2KB data dulu baru mau kirim ke browser
+// Pancingan data kosong
 echo ":" . str_repeat(" ", 2048) . "\n\n";
 flush();
 
 $last_hash = null;
-$startTime = time();
+$start = time();
 
-// 4. LOOPING (BATASI WAKTU)
 while (true) {
-    // Jika koneksi sudah > 45 detik, matikan script.
-    // Browser otomatis akan reconnect (Retry). 
-    // Ini trik jitu menghindari Timeout 60s Cloudflare/Hosting.
-    if ((time() - $startTime) > 45) {
-        die(); 
-    }
+    // Auto restart tiap 30 detik (Lebih cepat biar aman)
+    if ((time() - $start) > 30) die();
 
+    // QUERY: Pastikan mengambil semua yang belum selesai
+    // Tunai -> menunggu_konfirmasi
+    // Midtrans -> menunggu_bayar
     $sql = "SELECT t.*, m.nomor_meja 
             FROM transaksi t
             JOIN meja m ON t.meja_id = m.id
-            WHERE (t.status_pesanan = 'menunggu_konfirmasi' OR t.status_pesanan = 'menunggu_bayar')";
+            WHERE t.status_pesanan IN ('menunggu_konfirmasi', 'menunggu_bayar')";
 
+    // Filter cabang jika bukan admin pusat global
     if ($level != 'admin' || (isset($_GET['view_cabang']) && $_GET['view_cabang'] != 'pusat')) {
         $sql .= " AND m.cabang_id = '$cabang_id'";
     }
@@ -53,35 +49,33 @@ while (true) {
 
     $result = $koneksi->query($sql);
     
-    // Cek koneksi DB, jika putus reconnect (Opsional, mysqli biasanya handle sendiri)
-    if (!$result) break;
+    if (!$result) { echo "retry: 5000\n\n"; flush(); break; }
 
     $data = [];
     while ($row = $result->fetch_assoc()) {
+        // Ambil items
         $trx_id = $row['id'];
         $items_res = $koneksi->query("SELECT d.qty, mn.nama_menu FROM transaksi_detail d JOIN menu mn ON d.menu_id = mn.id WHERE d.transaksi_id = '$trx_id'");
         $items = [];
-        while($i = $items_res->fetch_assoc()) { $items[] = $i; }
+        while($i = $items_res->fetch_assoc()) $items[] = $i;
         $row['items'] = $items;
         $data[] = $row;
     }
 
-    $current_hash = md5(json_encode($data));
+    $json = json_encode(['status' => 'success', 'data' => $data]);
+    $hash = md5($json);
 
-    // Kirim data HANYA jika ada perubahan
-    if ($current_hash !== $last_hash) {
-        echo "data: " . json_encode(['status' => 'success', 'data' => $data]) . "\n\n";
-        $last_hash = $current_hash;
-        flush(); // Paksa kirim ke browser
+    if ($hash !== $last_hash) {
+        echo "data: {$json}\n\n";
+        $last_hash = $hash;
+        flush();
     }
     
-    // Kirim "Heartbeat" (Detak Jantung) agar koneksi tetap hidup
-    // Hosting sering memutus koneksi yg diam saja
-    echo ": keep-alive\n\n";
+    // Heartbeat tiap 2 detik
+    echo ": keepalive\n\n";
     flush();
-
-    if (connection_aborted()) break;
     
-    sleep(3); // Interval cek database (jangan terlalu cepat di hosting)
+    if (connection_aborted()) break;
+    sleep(2);
 }
 ?>

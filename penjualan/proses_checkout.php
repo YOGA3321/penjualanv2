@@ -1,4 +1,5 @@
 <?php
+// Anti-Crash Header
 ini_set('display_errors', 0);
 error_reporting(E_ALL);
 
@@ -16,16 +17,16 @@ ob_start();
 session_start();
 require_once '../auth/koneksi.php';
 
-// Cek Library Midtrans
+// Load Library Midtrans
 $autoload_path = dirname(__FILE__) . '/../vendor/autoload.php';
 if (!file_exists($autoload_path)) {
-    ob_clean();
-    echo json_encode(['status' => 'error', 'message' => 'Library Midtrans hilang.']); exit;
+    ob_clean(); echo json_encode(['status' => 'error', 'message' => 'Library Midtrans hilang']); exit;
 }
 require_once $autoload_path;
 
 header('Content-Type: application/json');
 
+// Cek Sesi
 if (!isset($_SESSION['plg_meja_id'])) {
     ob_clean(); echo json_encode(['status' => 'error', 'message' => 'Sesi habis, scan ulang QR']); exit;
 }
@@ -35,15 +36,41 @@ if (!$input) { ob_clean(); echo json_encode(['status' => 'error', 'message' => '
 
 $meja_id = $_SESSION['plg_meja_id'];
 $nama = $koneksi->real_escape_string($input['nama_pelanggan']);
-$total = $input['total_harga'];
+$total = (int)$input['total_harga'];
 $metode = $input['metode']; 
 $items = $input['items'];
 
-$uuid = sprintf('%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
-    mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff),
-    mt_rand(0, 0x0fff) | 0x4000, mt_rand(0, 0x3fff) | 0x8000,
-    mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
-);
+// ============================================================
+// [BARU] CEK TRANSAKSI PENDING (ANTI DOBEL ORDER)
+// ============================================================
+if ($metode == 'midtrans') {
+    // Cari transaksi di meja ini, status pending, metode midtrans, dan total harga SAMA
+    // Kita cek total harga juga untuk memastikan ini bukan order tambahan yg berbeda menu
+    $cek_pending = $koneksi->query("SELECT uuid, snap_token FROM transaksi 
+                                    WHERE meja_id = '$meja_id' 
+                                    AND status_pembayaran = 'pending' 
+                                    AND metode_pembayaran = 'midtrans'
+                                    AND total_harga = '$total' 
+                                    ORDER BY id DESC LIMIT 1");
+                                    
+    if ($cek_pending->num_rows > 0) {
+        $existing = $cek_pending->fetch_assoc();
+        ob_clean();
+        echo json_encode([
+            'status' => 'success', 
+            'uuid' => $existing['uuid'], 
+            'snap_token' => $existing['snap_token'],
+            'info' => 'Resume transaksi sebelumnya'
+        ]);
+        exit; // STOP DISINI
+    }
+}
+
+// ============================================================
+// BUAT BARU
+// ============================================================
+
+$uuid = sprintf('%04x%04x-%04x-%04x-%04x-%04x%04x%04x', mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0x0fff) | 0x4000, mt_rand(0, 0x3fff) | 0x8000, mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff));
 
 $status_bayar = 'pending';
 $status_pesanan = ($metode == 'tunai') ? 'menunggu_konfirmasi' : 'menunggu_bayar'; 
@@ -60,7 +87,7 @@ if ($metode == 'midtrans') {
     $midtrans_order_id = "RESTO-" . $short_uuid . "-" . time(); 
 
     $params = [
-        'transaction_details' => ['order_id' => $midtrans_order_id, 'gross_amount' => (int)$total],
+        'transaction_details' => ['order_id' => $midtrans_order_id, 'gross_amount' => $total],
         'customer_details' => [ 'first_name' => $nama ],
         'custom_field1' => $uuid 
     ];
@@ -68,8 +95,7 @@ if ($metode == 'midtrans') {
     try {
         $snap_token = \Midtrans\Snap::getSnapToken($params);
     } catch (Exception $e) {
-        ob_clean();
-        echo json_encode(['status' => 'error', 'message' => 'Midtrans Error: ' . $e->getMessage()]); exit;
+        ob_clean(); echo json_encode(['status' => 'error', 'message' => 'Midtrans Error: ' . $e->getMessage()]); exit;
     }
 }
 
