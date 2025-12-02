@@ -19,12 +19,11 @@ $sql = "SELECT t.*, m.nomor_meja, u.nama as nama_kasir
         LEFT JOIN users u ON t.user_id = u.id";
 
 if ($level != 'admin' || isset($_SESSION['view_cabang_id'])) {
-    // Filter transaksi berdasarkan cabang meja
     $sql .= " WHERE m.cabang_id = '$cabang_id'";
 }
 
-// ORDER BY ASC (Terlama di atas, Terbaru di bawah)
-$sql .= " ORDER BY t.created_at ASC LIMIT 100";
+// ORDER BY ASC (Terbaru di bawah) - Atau ubah DESC jika ingin terbaru di atas
+$sql .= " ORDER BY t.created_at DESC LIMIT 100";
 
 $data = $koneksi->query($sql);
 
@@ -33,7 +32,7 @@ include '../layouts/admin/header.php';
 
 <div class="card border-0 shadow-sm">
     <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-        <h6 class="m-0 font-weight-bold text-primary">Daftar Transaksi</h6>
+        <h6 class="m-0 font-weight-bold text-primary">Daftar Transaksi Terakhir</h6>
         <button class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="fas fa-print me-1"></i> Cetak Laporan</button>
     </div>
     <div class="card-body p-0">
@@ -41,7 +40,8 @@ include '../layouts/admin/header.php';
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr>
-                        <th class="ps-4">No</th> <th>Waktu</th>
+                        <th class="ps-4">No</th> 
+                        <th>Waktu</th>
                         <th>Meja</th>
                         <th>Pelanggan</th>
                         <th>Total</th>
@@ -51,7 +51,7 @@ include '../layouts/admin/header.php';
                 </thead>
                 <tbody>
                     <?php if($data->num_rows > 0): ?>
-                        <?php $no = 1; // Inisialisasi Nomor Urut ?>
+                        <?php $no = 1; ?>
                         <?php while($row = $data->fetch_assoc()): ?>
                         <tr>
                             <td class="ps-4 fw-bold"><?= $no++ ?></td>
@@ -66,27 +66,23 @@ include '../layouts/admin/header.php';
                             <td>
                                 <?php 
                                     $st = $row['status_pembayaran'];
-                                    // Logic warna badge
                                     if ($st == 'settlement') {
                                         echo "<span class='badge bg-success'>LUNAS</span>";
                                     } elseif ($st == 'pending') {
                                         echo "<span class='badge bg-warning text-dark'>BELUM BAYAR</span>";
+                                    } elseif ($st == 'cancel') {
+                                        echo "<span class='badge bg-secondary'>DIBATALKAN</span>";
                                     } else {
                                         echo "<span class='badge bg-danger'>".strtoupper($st)."</span>";
                                     }
                                 ?>
                             </td>
                             <td class="text-end pe-4">
-                                <button class="btn btn-sm btn-info text-white me-1" onclick="showDetail('<?= $row['uuid'] ?>')">
+                                <button class="btn btn-sm btn-info text-white me-1" onclick="showDetail('<?= $row['uuid'] ?>')" title="Lihat Detail">
                                     <i class="fas fa-eye"></i>
                                 </button>
 
-                                <?php if($row['status_pembayaran'] == 'pending' && $row['metode_pembayaran'] == 'tunai'): ?>
-                                    <button class="btn btn-sm btn-success fw-bold ms-1" 
-                                            onclick="konfirmasiBayar('<?= $row['id'] ?>', <?= $row['total_harga'] ?>, '<?= $row['nama_pelanggan'] ?>')">
-                                        <i class="fas fa-money-bill-wave me-1"></i> Bayar
-                                    </button>
-                                <?php else: ?>
+                                <?php if($row['status_pembayaran'] == 'settlement'): ?>
                                     <a href="../penjualan/struk.php?uuid=<?= $row['uuid'] ?>&print=true" target="_blank" class="btn btn-sm btn-secondary ms-1" title="Cetak Struk">
                                         <i class="fas fa-print"></i>
                                     </a>
@@ -135,7 +131,7 @@ include '../layouts/admin/header.php';
                         <span id="d_total" class="text-primary fs-5"></span>
                     </div>
                     <div class="d-flex justify-content-between small text-muted">
-                        <span>Bayar Tunai</span>
+                        <span>Bayar</span>
                         <span id="d_bayar"></span>
                     </div>
                     <div class="d-flex justify-content-between small text-muted">
@@ -144,7 +140,7 @@ include '../layouts/admin/header.php';
                     </div>
                 </div>
                 <div class="mt-3 text-center">
-                    Status Pesanan: <span id="d_status_pesanan" class="badge"></span>
+                    Status: <span id="d_status_pesanan" class="badge"></span>
                 </div>
             </div>
         </div>
@@ -152,84 +148,7 @@ include '../layouts/admin/header.php';
 </div>
 
 <script>
-// 1. FUNGSI KONFIRMASI BAYAR (POPUP INPUT UANG)
-function konfirmasiBayar(id, total, nama) {
-    Swal.fire({
-        title: 'Terima Pembayaran',
-        html: `
-            <div class="mb-3 text-start">
-                <small>Pelanggan: <b>${nama}</b></small><br>
-                <small>Total Tagihan:</small>
-                <h3 class="text-primary fw-bold">Rp ${parseInt(total).toLocaleString('id-ID')}</h3>
-            </div>
-            <label class="form-label fw-bold">Uang Diterima</label>
-            <input type="number" id="swal-input-uang" class="form-control form-control-lg text-center" placeholder="0">
-            <div class="mt-2 fw-bold text-success" id="swal-kembalian">Kembalian: Rp 0</div>
-        `,
-        showCancelButton: true,
-        confirmButtonText: 'Proses & Cetak',
-        confirmButtonColor: '#198754',
-        didOpen: () => {
-            // Logic Hitung Kembalian Realtime di dalam SweetAlert
-            const input = document.getElementById('swal-input-uang');
-            const display = document.getElementById('swal-kembalian');
-            
-            input.oninput = () => {
-                let bayar = parseInt(input.value) || 0;
-                let kembali = bayar - total;
-                if (kembali >= 0) {
-                    display.innerText = 'Kembalian: Rp ' + kembali.toLocaleString('id-ID');
-                    display.className = 'mt-2 fw-bold text-success';
-                } else {
-                    display.innerText = 'Kurang: Rp ' + Math.abs(kembali).toLocaleString('id-ID');
-                    display.className = 'mt-2 fw-bold text-danger';
-                }
-            };
-            input.focus();
-        },
-        preConfirm: () => {
-            const uang = document.getElementById('swal-input-uang').value;
-            if (!uang || uang < total) {
-                Swal.showValidationMessage('Uang pembayaran kurang!');
-            }
-            return uang;
-        }
-    }).then((result) => {
-        if (result.isConfirmed) {
-            let uang_bayar = result.value;
-            let kembalian = uang_bayar - total;
-            
-            // Kirim ke API Action
-            const formData = new FormData();
-            formData.append('action', 'konfirmasi_bayar');
-            formData.append('id', id);
-            formData.append('uang_bayar', uang_bayar);
-            formData.append('kembalian', kembalian);
-
-            fetch('api/transaksi_action.php', {
-                method: 'POST',
-                body: formData
-            }).then(res => res.json()).then(data => {
-                if(data.status === 'success') {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Lunas!',
-                        text: 'Kembalian: Rp ' + kembalian.toLocaleString('id-ID'),
-                        timer: 2000,
-                        showConfirmButton: false
-                    }).then(() => {
-                        // Reload halaman untuk update status
-                        location.reload();
-                    });
-                } else {
-                    Swal.fire('Gagal', data.message, 'error');
-                }
-            });
-        }
-    });
-}
-
-// 2. FUNGSI LIHAT DETAIL (SAMA SEPERTI SEBELUMNYA)
+// Fungsi Lihat Detail
 function showDetail(uuid) {
     Swal.fire({title: 'Memuat...', didOpen: () => Swal.showLoading()});
 
@@ -247,8 +166,8 @@ function showDetail(uuid) {
             document.getElementById('d_kembalian').innerText = 'Rp ' + parseInt(h.kembalian).toLocaleString('id-ID');
             
             const badge = document.getElementById('d_status_pesanan');
-            badge.innerText = h.status_pesanan.toUpperCase();
-            badge.className = 'badge ' + (h.status_pesanan === 'selesai' ? 'bg-success' : 'bg-warning');
+            badge.innerText = h.status_pembayaran.toUpperCase();
+            badge.className = 'badge ' + (h.status_pembayaran === 'settlement' ? 'bg-success' : 'bg-warning');
 
             let htmlItems = '';
             data.items.forEach(item => {
