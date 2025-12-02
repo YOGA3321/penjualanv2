@@ -2,75 +2,92 @@
 session_start();
 require_once '../../auth/koneksi.php';
 
-// Header wajib untuk SSE
+// Header Anti-Buffering (Wajib untuk Hosting)
 header('Content-Type: text/event-stream');
 header('Cache-Control: no-cache');
 header('Connection: keep-alive');
+header('X-Accel-Buffering: no'); 
 
-// Matikan buffer
-if (function_exists('apache_setenv')) {
-    @apache_setenv('no-gzip', 1);
-}
+// Matikan Kompresi
 @ini_set('zlib.output_compression', 0);
 @ini_set('implicit_flush', 1);
-for ($i = 0; $i < ob_get_level(); $i++) { ob_end_flush(); }
+while (ob_get_level() > 0) { ob_end_flush(); }
 ob_implicit_flush(1);
 
-// 1. Ambil Data Session
-$level = $_SESSION['level'] ?? '';
-$user_cabang = $_SESSION['cabang_id'] ?? 0;
+// Ambil Parameter
+$cabang_id = $_GET['cabang_id'] ?? '';
+$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+$limit = 24; // Tampilkan 24 meja per halaman (Ringan)
+$offset = ($page - 1) * $limit;
 
-// [PENTING] TUTUP SESI AGAR TIDAK MENGUNCI HALAMAN LAIN
-// Kita sudah ambil datanya ($level & $user_cabang), jadi sesi bisa ditutup.
-session_write_close(); 
+session_write_close();
 
-$filter_cabang = isset($_GET['cabang_id']) ? $_GET['cabang_id'] : '';
+// Pancingan Data
+echo ":" . str_repeat(" ", 2048) . "\n\n";
+flush();
+
 $last_hash = null;
+$start = time();
 
-// LOOPING TANPA HENTI
 while (true) {
-    
-    // Query Data Meja (Pastikan koneksi database tetap fresh)
-    // Jika koneksi putus di tengah jalan, buat koneksi baru (opsional, biasanya mysqli handle ini)
-    
-    $sql_meja = "SELECT meja.id, meja.nomor_meja, meja.status, meja.qr_token, cabang.nama_cabang 
-                 FROM meja 
-                 JOIN cabang ON meja.cabang_id = cabang.id";
+    if ((time() - $start) > 30) die();
 
-    if ($level == 'admin' && !empty($filter_cabang)) {
-        $sql_meja .= " WHERE meja.cabang_id = '$filter_cabang'";
-    } elseif ($level != 'admin') {
-        $sql_meja .= " WHERE meja.cabang_id = '$user_cabang'";
+    // 1. HITUNG TOTAL DATA (Untuk Pagination)
+    $sql_count = "SELECT COUNT(*) as total FROM meja m";
+    if (!empty($cabang_id)) {
+        $sql_count .= " WHERE m.cabang_id = '$cabang_id'";
     }
+    $total_data = $koneksi->query($sql_count)->fetch_assoc()['total'];
+    $total_pages = ceil($total_data / $limit);
 
-    $sql_meja .= " ORDER BY cabang.nama_cabang ASC, CAST(meja.nomor_meja AS UNSIGNED) ASC";
-    
-    $result = $koneksi->query($sql_meja);
-    
-    // Error Handling jika DB putus
-    if (!$result) {
-        break; // Keluar loop biar SSE reconnect otomatis
+    // 2. AMBIL DATA SESUAI HALAMAN (LIMIT)
+    $sql = "SELECT m.*, c.nama_cabang 
+            FROM meja m 
+            LEFT JOIN cabang c ON m.cabang_id = c.id";
+            
+    if (!empty($cabang_id)) {
+        $sql .= " WHERE m.cabang_id = '$cabang_id'";
     }
+    
+    // Sorting: Cabang dulu, lalu Nomor Meja (Angka)
+    $sql .= " ORDER BY c.id ASC, CAST(m.nomor_meja AS UNSIGNED) ASC 
+              LIMIT $offset, $limit";
+
+    $result = $koneksi->query($sql);
+    
+    if (!$result) break;
 
     $data = [];
     while ($row = $result->fetch_assoc()) {
-        $row['qr_url'] = BASE_URL . "/penjualan/?token=" . $row['qr_token'];
+        // Buat URL QR Code disini agar JS tidak repot
+        $row['qr_url'] = BASE_URL . "/penjualan/index.php?token=" . $row['qr_token'];
         $data[] = $row;
     }
 
-    // Cek Perubahan
-    $current_hash = md5(json_encode($data));
+    // Bungkus Data + Info Halaman
+    $response = [
+        'status' => 'success',
+        'data' => $data,
+        'pagination' => [
+            'current_page' => $page,
+            'total_pages' => $total_pages,
+            'total_data' => $total_data
+        ]
+    ];
 
-    if ($current_hash !== $last_hash) {
-        echo "data: " . json_encode(['status' => 'success', 'data' => $data]) . "\n\n";
-        $last_hash = $current_hash;
+    $json = json_encode($response);
+    $hash = md5($json);
+
+    if ($hash !== $last_hash) {
+        echo "data: {$json}\n\n";
+        $last_hash = $hash;
+        flush();
     }
-
+    
+    echo ": keepalive\n\n";
     flush();
     
-    // Cek koneksi klien
     if (connection_aborted()) break;
-
-    sleep(1); // Istirahat 1 detik
+    sleep(3);
 }
 ?>

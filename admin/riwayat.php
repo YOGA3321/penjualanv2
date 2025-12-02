@@ -8,23 +8,36 @@ $active_menu = "riwayat";
 
 $cabang_id = $_SESSION['cabang_id'] ?? 0;
 $level = $_SESSION['level'] ?? '';
-if ($level == 'admin' && isset($_SESSION['view_cabang_id'])) {
-    $cabang_id = $_SESSION['view_cabang_id'];
+
+// Cek Mode Tampilan (Global atau Spesifik)
+$view_cabang = "";
+$is_global = false;
+
+if ($level == 'admin') {
+    $view_cabang = $_SESSION['view_cabang_id'] ?? 'pusat';
+    if ($view_cabang == 'pusat') {
+        $is_global = true; // Mode Lihat Semua
+    } else {
+        $cabang_id = $view_cabang; // Mode Cabang Tertentu
+    }
 }
 
 // QUERY DATA TRANSAKSI
-$sql = "SELECT t.*, m.nomor_meja, u.nama as nama_kasir 
+// Join ke tabel cabang untuk ambil nama cabang
+$sql = "SELECT t.*, m.nomor_meja, u.nama as nama_kasir, c.nama_cabang 
         FROM transaksi t
         JOIN meja m ON t.meja_id = m.id
+        LEFT JOIN cabang c ON m.cabang_id = c.id
         LEFT JOIN users u ON t.user_id = u.id";
 
-if ($level != 'admin' || isset($_SESSION['view_cabang_id'])) {
-    $sql .= " WHERE m.cabang_id = '$cabang_id'";
+// Filter WHERE
+if (!$is_global) {
+    // Jika bukan global, filter berdasarkan cabang aktif
+    $target_cabang = ($level == 'admin') ? $view_cabang : $_SESSION['cabang_id'];
+    $sql .= " WHERE m.cabang_id = '$target_cabang'";
 }
 
-// ORDER BY ASC (Terbaru di bawah) - Atau ubah DESC jika ingin terbaru di atas
 $sql .= " ORDER BY t.created_at DESC LIMIT 100";
-
 $data = $koneksi->query($sql);
 
 include '../layouts/admin/header.php';
@@ -32,7 +45,12 @@ include '../layouts/admin/header.php';
 
 <div class="card border-0 shadow-sm">
     <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-        <h6 class="m-0 font-weight-bold text-primary">Daftar Transaksi Terakhir</h6>
+        <h6 class="m-0 font-weight-bold text-primary">
+            Daftar Transaksi Terakhir
+            <?php if($is_global): ?>
+                <span class="badge bg-secondary ms-2">Semua Cabang</span>
+            <?php endif; ?>
+        </h6>
         <button class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="fas fa-print me-1"></i> Cetak Laporan</button>
     </div>
     <div class="card-body p-0">
@@ -42,6 +60,7 @@ include '../layouts/admin/header.php';
                     <tr>
                         <th class="ps-4">No</th> 
                         <th>Waktu</th>
+                        <?php if($is_global): ?> <th>Cabang</th> <?php endif; ?>
                         <th>Meja</th>
                         <th>Pelanggan</th>
                         <th>Total</th>
@@ -60,8 +79,13 @@ include '../layouts/admin/header.php';
                                 <?= date('d/m/Y', strtotime($row['created_at'])) ?><br>
                                 <small class="text-muted"><?= date('H:i', strtotime($row['created_at'])) ?></small>
                             </td>
+
+                            <?php if($is_global): ?>
+                                <td><span class="badge bg-info text-dark"><i class="fas fa-store me-1"></i> <?= $row['nama_cabang'] ?></span></td>
+                            <?php endif; ?>
+
                             <td><span class="badge bg-dark">Meja <?= $row['nomor_meja'] ?></span></td>
-                            <td><?= $row['nama_pelanggan'] ?></td>
+                            <td><?= htmlspecialchars($row['nama_pelanggan']) ?></td>
                             <td class="fw-bold text-primary">Rp <?= number_format($row['total_harga']) ?></td>
                             <td>
                                 <?php 
@@ -69,21 +93,21 @@ include '../layouts/admin/header.php';
                                     if ($st == 'settlement') {
                                         echo "<span class='badge bg-success'>LUNAS</span>";
                                     } elseif ($st == 'pending') {
-                                        echo "<span class='badge bg-warning text-dark'>BELUM BAYAR</span>";
+                                        echo "<span class='badge bg-warning text-dark'>PENDING</span>";
                                     } elseif ($st == 'cancel') {
-                                        echo "<span class='badge bg-secondary'>DIBATALKAN</span>";
+                                        echo "<span class='badge bg-secondary'>BATAL</span>";
                                     } else {
                                         echo "<span class='badge bg-danger'>".strtoupper($st)."</span>";
                                     }
                                 ?>
                             </td>
                             <td class="text-end pe-4">
-                                <button class="btn btn-sm btn-info text-white me-1" onclick="showDetail('<?= $row['uuid'] ?>')" title="Lihat Detail">
+                                <button class="btn btn-sm btn-info text-white me-1" onclick="showDetail('<?= $row['uuid'] ?>')" title="Detail">
                                     <i class="fas fa-eye"></i>
                                 </button>
 
                                 <?php if($row['status_pembayaran'] == 'settlement'): ?>
-                                    <a href="../penjualan/struk.php?uuid=<?= $row['uuid'] ?>&print=true" target="_blank" class="btn btn-sm btn-secondary ms-1" title="Cetak Struk">
+                                    <a href="../penjualan/struk.php?uuid=<?= $row['uuid'] ?>&print=true" target="_blank" class="btn btn-sm btn-secondary ms-1" title="Cetak">
                                         <i class="fas fa-print"></i>
                                     </a>
                                 <?php endif; ?>
@@ -92,7 +116,7 @@ include '../layouts/admin/header.php';
                         <?php endwhile; ?>
                     <?php else: ?>
                         <tr>
-                            <td colspan="7" class="text-center py-5 text-muted">Belum ada data transaksi.</td>
+                            <td colspan="<?= $is_global ? 8 : 7 ?>" class="text-center py-5 text-muted">Belum ada data transaksi.</td>
                         </tr>
                     <?php endif; ?>
                 </tbody>
@@ -148,7 +172,6 @@ include '../layouts/admin/header.php';
 </div>
 
 <script>
-// Fungsi Lihat Detail
 function showDetail(uuid) {
     Swal.fire({title: 'Memuat...', didOpen: () => Swal.showLoading()});
 
