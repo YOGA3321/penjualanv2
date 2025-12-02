@@ -1,7 +1,7 @@
 <?php
 session_start();
-if (!isset($_SESSION['user_id'])) { header("Location: ../login"); exit; }
-require_once '../auth/koneksi';
+if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit; }
+require_once '../auth/koneksi.php';
 
 $page_title = "Dashboard";
 $active_menu = "dashboard";
@@ -17,15 +17,20 @@ if ($level == 'admin') {
     $view_cabang = $_SESSION['cabang_id'];
 }
 
-// Set Query Filter
+// --- 1. SET QUERY FILTER DEFAULT ---
+// Default: Filter kondisi dasar dulu
 $where_trx = "WHERE t.status_pembayaran = 'settlement'";
-$where_meja = "";
 $where_menu = "WHERE m.is_active = 1";
+$where_meja = "WHERE status = 'terisi'"; // [FIX] Default query meja
 
+// --- 2. JIKA MEMILIH CABANG SPESIFIK ---
 if ($view_cabang != 'pusat') {
-    // Jika filter cabang aktif
+    // Tambahkan filter cabang menggunakan 'AND'
     $where_trx .= " AND t.meja_id IN (SELECT id FROM meja WHERE cabang_id = '$view_cabang')";
-    $where_meja = "WHERE cabang_id = '$view_cabang'";
+    
+    // [FIX] Tambahkan AND untuk meja
+    $where_meja .= " AND cabang_id = '$view_cabang'";
+    
     $where_menu .= " AND (m.cabang_id = '$view_cabang' OR m.cabang_id IS NULL)";
     
     // Ambil nama cabang untuk label
@@ -33,21 +38,24 @@ if ($view_cabang != 'pusat') {
     $cabang_label = $c['nama_cabang'] ?? 'Cabang Terpilih';
 }
 
-// 1. Total Omset (Hari Ini)
+// --- 3. EKSEKUSI QUERY ---
+
+// A. Total Omset (Hari Ini)
 $today = date('Y-m-d');
 $q_omset = $koneksi->query("SELECT SUM(total_harga) as total FROM transaksi t $where_trx AND DATE(t.created_at) = '$today'");
 $omset_hari_ini = $q_omset->fetch_assoc()['total'] ?? 0;
 
-// 2. Total Pesanan (Hari Ini)
+// B. Total Pesanan (Hari Ini)
 $q_trx = $koneksi->query("SELECT COUNT(*) as total FROM transaksi t $where_trx AND DATE(t.created_at) = '$today'");
 $trx_hari_ini = $q_trx->fetch_assoc()['total'] ?? 0;
 
-// 3. Total Menu Aktif
+// C. Total Menu Aktif
 $q_menu = $koneksi->query("SELECT COUNT(*) as total FROM menu m $where_menu");
 $total_menu = $q_menu->fetch_assoc()['total'] ?? 0;
 
-// 4. Meja Terisi
-$q_meja = $koneksi->query("SELECT COUNT(*) as total FROM meja $where_meja AND status = 'terisi'");
+// D. Meja Terisi [FIXED QUERY]
+// Variabel $where_meja sekarang sudah berisi "WHERE status='terisi' [AND cabang_id='...']"
+$q_meja = $koneksi->query("SELECT COUNT(*) as total FROM meja $where_meja");
 $meja_terisi = $q_meja->fetch_assoc()['total'] ?? 0;
 
 include '../layouts/admin/header.php';

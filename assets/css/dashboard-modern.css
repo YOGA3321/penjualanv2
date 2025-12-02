@@ -1,0 +1,178 @@
+/* FONT MODERN */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+    --font-primary: 'Inter', sans-serif;
+    --color-bg-main: #f8f9fa; /* Abu-abu sangat muda */
+    --color-text-dark: #1e293b; /* Biru tua/hitam modern */
+    --color-text-muted: #64748b;
+
+    /* Palet Warna Card (Gradient Modern) */
+    --grad-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --grad-success: linear-gradient(135deg, #2af598 0%, #009efd 100%);
+    --grad-warning: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+    --grad-danger: linear-gradient(135deg, #ff9a44 0%, #fc6076 100%);
+
+    /* Shadow Modern */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+body {
+    font-family: var(--font-primary);
+    background-color: var(--color-bg-main);
+    color: var(--color-text-dark);
+}
+
+/* === HEADER DASHBOARD (Alert Welcome) === */
+.alert-primary {
+    background: #fff; /* Ganti background biru default */
+    border: none;
+    border-radius: 1rem;
+    box-shadow: var(--shadow-md);
+    padding: 2rem;
+    position: relative;
+    overflow: hidden;
+    color: var(--color-text-dark);
+}
+
+/* Tambah hiasan background */
+.alert-primary::before {
+    content: '';
+    position: absolute;
+    top: -50%; left: -50%;
+    width: 100%; height: 200%;
+    background: radial-gradient(circle, rgba(102, 126, 234, 0.1) 0%, rgba(255,255,255,0) 70%);
+    z-index: 0;
+    transform: rotate(30deg);
+}
+
+.alert-primary .alert-heading, .alert-primary p {
+    position: relative; z-index: 1;
+}
+.alert-primary .alert-heading {
+    font-weight: 800;
+    font-size: 1.5rem;
+    background: var(--grad-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* === KARTU STATISTIK (Cards) === */
+.card.border-0.shadow-sm {
+    border-radius: 1.25rem; /* Lebih bulat */
+    box-shadow: var(--shadow-md) !important;
+    transition: all 0.3s ease;
+    overflow: hidden; /* Untuk ikon background */
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--shadow-lg) !important;
+}
+
+.card-body {
+    padding: 1.5rem;
+    position: relative;
+    z-index: 1;
+}
+
+/* Gaya Teks di dalam Card */
+.card p.text-muted.small.fw-bold.text-uppercase {
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted) !important;
+    margin-bottom: 0.5rem !important;
+}
+
+.card h4.fw-bold {
+    font-size: 1.75rem;
+    font-weight: 800 !important;
+    margin-bottom: 0 !important;
+}
+
+/* Ikon di Kanan */
+.bg-opacity-10.p-3.rounded-circle {
+    border-radius: 1rem !important; /* Ubah lingkaran jadi rounded square */
+    padding: 1rem !important;
+    display: flex; align-items: center; justify-content: center;
+}
+.bg-opacity-10 i {
+    font-size: 1.8rem; /* Sedikit lebih kecil agar proporsional */
+}
+
+/* === WARNA CARD SPESIFIK === */
+/* Primary (Omset) */
+.border-primary.border-4 { border-color: transparent !important; }
+.border-primary .card-body::after { /* Ikon Background Besar */
+    content: '\f555'; /* Kode icon fa-wallet */
+    font-family: "Font Awesome 6 Free"; font-weight: 900;
+    position: absolute; right: -20px; bottom: -30px;
+    font-size: 8rem; color: rgba(102, 126, 234, 0.05);
+    transform: rotate(-15deg); z-index: -1;
+}
+.border-primary .text-primary { color: #667eea !important; }
+.border-primary .bg-primary.bg-opacity-10 { background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1)) !important; }
+
+/* Success (Pesanan) */
+.border-success.border-4 { border-color: transparent !important; }
+.border-success .card-body::after {
+    content: '\f290'; /* fa-shopping-bag */
+    font-family: "Font Awesome 6 Free"; font-weight: 900;
+    position: absolute; right: -20px; bottom: -30px;
+    font-size: 8rem; color: rgba(42, 245, 152, 0.05);
+    transform: rotate(-15deg); z-index: -1;
+}
+.border-success .text-success { color: #2af598 !important; }
+.border-success .bg-success.bg-opacity-10 { background: linear-gradient(135deg, rgba(42, 245, 152, 0.1), rgba(0, 158, 253, 0.1)) !important; }
+
+/* Warning (Menu) */
+.border-warning.border-4 { border-color: transparent !important; }
+.border-warning .card-body::after {
+    content: '\f2e7'; /* fa-utensils */
+    font-family: "Font Awesome 6 Free"; font-weight: 900;
+    position: absolute; right: -20px; bottom: -30px;
+    font-size: 8rem; color: rgba(246, 211, 101, 0.05);
+    transform: rotate(-15deg); z-index: -1;
+}
+.border-warning .text-warning { color: #f6d365 !important; }
+.border-warning .bg-warning.bg-opacity-10 { background: linear-gradient(135deg, rgba(246, 211, 101, 0.1), rgba(253, 160, 133, 0.1)) !important; }
+
+/* Danger (Meja) */
+.border-danger.border-4 { border-color: transparent !important; }
+.border-danger .card-body::after {
+    content: '\f6c0'; /* fa-chair */
+    font-family: "Font Awesome 6 Free"; font-weight: 900;
+    position: absolute; right: -20px; bottom: -30px;
+    font-size: 8rem; color: rgba(255, 154, 68, 0.05);
+    transform: rotate(-15deg); z-index: -1;
+}
+.border-danger .text-danger { color: #ff9a44 !important; }
+.border-danger .bg-danger.bg-opacity-10 { background: linear-gradient(135deg, rgba(255, 154, 68, 0.1), rgba(252, 96, 118, 0.1)) !important; }
+
+
+/* === TOMBOL SHORTCUT === */
+.row.g-3 .btn {
+    border-radius: 1rem;
+    padding: 1.5rem !important;
+    font-size: 1.1rem;
+    border: none;
+    box-shadow: var(--shadow-md) !important;
+    transition: all 0.3s ease;
+    display: flex; align-items: center; justify-content: center;
+}
+
+.row.g-3 .btn:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-lg) !important;
+}
+
+.btn-primary.w-100 { background: var(--grad-primary) !important; }
+.btn-dark.w-100 { background: linear-gradient(135deg, #2c3e50 0%, #4ca1af 100%) !important; }
+.btn-info.w-100 { background: var(--grad-success) !important; }
+
+.row.g-3 .btn i {
+    font-size: 1.5rem;
+    margin-right: 1rem !important;
+}
