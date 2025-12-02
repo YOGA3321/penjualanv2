@@ -2,7 +2,7 @@
 require_once '../auth/koneksi.php';
 $uuid = $_GET['uuid'] ?? '';
 
-if(empty($uuid)) { header("Location: index.php"); exit; }
+if(empty($uuid)) { header("Location: index"); exit; }
 
 // 1. AMBIL DATA DULU (FIX ERROR Undefined variable $trx)
 $query = "SELECT t.*, m.nomor_meja, c.nama_cabang, c.alamat 
@@ -18,7 +18,7 @@ if (!$trx) { die("Data transaksi tidak ditemukan."); }
 // 2. BARU LAKUKAN PENGECEKAN KEAMANAN
 // Jika status masih pending dan metode tunai, LEMPAR BALIK ke halaman tunggu (status.php)
 if ($trx['metode_pembayaran'] == 'tunai' && $trx['status_pembayaran'] == 'pending') {
-    header("Location: status.php?uuid=$uuid");
+    header("Location: status?uuid=$uuid");
     exit;
 }
 
@@ -92,7 +92,7 @@ $details = $koneksi->query("SELECT d.*, m.nama_menu FROM transaksi_detail d JOIN
 
     <div class="mt-4 d-grid gap-2 no-print">
         <button onclick="window.print()" class="btn btn-dark btn-sm">Cetak Struk</button>
-        <a href="index.php" class="btn btn-link btn-sm text-decoration-none">Kembali ke Menu</a>
+        <a href="index" class="btn btn-link btn-sm text-decoration-none">Kembali ke Menu</a>
     </div>
 </div>
 

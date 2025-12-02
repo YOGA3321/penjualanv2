@@ -17,7 +17,7 @@ if(!$trx) { die("Transaksi tidak ditemukan"); }
 
 // Jika status sudah settlement, lempar ke struk
 if ($trx['status_pembayaran'] == 'settlement' || $trx['status_pesanan'] == 'diproses') {
-    header("Location: struk.php?uuid=$uuid");
+    header("Location: struk?uuid=$uuid");
     exit;
 }
 ?>
@@ -62,7 +62,7 @@ if ($trx['status_pembayaran'] == 'settlement' || $trx['status_pesanan'] == 'dipr
     <?php endif; ?>
 
     <hr>
-    <a href="index.php" class="text-decoration-none text-secondary small">Kembali ke Menu Utama</a>
+    <a href="index" class="text-decoration-none text-secondary small">Kembali ke Menu Utama</a>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -85,14 +85,14 @@ if ($trx['status_pembayaran'] == 'settlement' || $trx['status_pesanan'] == 'dipr
 
     // Auto-Refresh Status (Polling)
     setInterval(() => {
-        fetch('check_status_api.php?uuid=<?= $uuid ?>')
+        fetch('check_status_api?uuid=<?= $uuid ?>')
         .then(res => res.json())
         .then(data => {
             if(data.status === 'success' && data.data.status_pembayaran === 'settlement') {
-                window.location.href = 'struk.php?uuid=<?= $uuid ?>';
+                window.location.href = 'sukses?uuid=<?= $uuid ?>';
             }
         });
-    }, 5000); // Cek tiap 5 detik
+    }, 5000);
 </script>
 
 </body>

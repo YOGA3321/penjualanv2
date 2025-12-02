@@ -48,12 +48,12 @@ if ($metode == 'midtrans') {
 }
 
 // 2. VALIDASI MEJA (Anti Tabrakan)
-$cek_meja = $koneksi->query("SELECT status FROM meja WHERE id = '$meja_id'")->fetch_assoc();
-if ($cek_meja && $cek_meja['status'] == 'terisi') {
-    ob_clean();
-    echo json_encode(['status' => 'error', 'message' => 'Maaf, meja ini sedang digunakan transaksi lain.']); 
-    exit;
-}
+// $cek_meja = $koneksi->query("SELECT status FROM meja WHERE id = '$meja_id'")->fetch_assoc();
+// if ($cek_meja && $cek_meja['status'] == 'terisi') {
+//     ob_clean();
+//     echo json_encode(['status' => 'error', 'message' => 'Maaf, meja ini sedang digunakan transaksi lain.']); 
+//     exit;
+// }
 
 // 3. VALIDASI STOK
 foreach ($items as $item) {

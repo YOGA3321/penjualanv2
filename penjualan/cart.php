@@ -4,7 +4,7 @@ require_once '../auth/koneksi.php';
 
 // Cek Sesi Meja (Wajib scan QR dulu)
 if (!isset($_SESSION['plg_meja_id'])) {
-    header("Location: index.php"); exit;
+    header("Location: index"); exit;
 }
 ?>
 <!DOCTYPE html>
@@ -21,7 +21,7 @@ if (!isset($_SESSION['plg_meja_id'])) {
 
     <div class="bg-white shadow-sm p-3 sticky-top">
         <div class="d-flex align-items-center">
-            <a href="index.php" class="text-dark me-3"><i class="fas fa-arrow-left fa-lg"></i></a>
+            <a href="index" class="text-dark me-3"><i class="fas fa-arrow-left fa-lg"></i></a>
             <h5 class="mb-0 fw-bold flex-grow-1">Keranjang Pesanan</h5>
             <span class="badge bg-primary">Meja <?= $_SESSION['plg_no_meja'] ?></span>
         </div>
@@ -105,7 +105,7 @@ if (!isset($_SESSION['plg_meja_id'])) {
                     <div class="text-center py-5 text-muted">
                         <i class="fas fa-shopping-cart fa-3x mb-3 text-secondary opacity-50"></i><br>
                         Keranjangmu masih kosong.<br>
-                        <a href="index.php" class="btn btn-sm btn-outline-primary mt-3 rounded-pill">Pesan Dulu Yuk!</a>
+                        <a href="index" class="btn btn-sm btn-outline-primary mt-3 rounded-pill">Pesan Dulu Yuk!</a>
                     </div>`;
                 formCard.style.display = 'none';
                 document.getElementById('grandTotal').innerText = 'Rp 0';
@@ -228,11 +228,11 @@ if (!isset($_SESSION['plg_meja_id'])) {
                         // POPUP SNAP
                         window.snap.pay(data.snap_token, {
                             onSuccess: function(result){
-                                window.location.href = 'status.php?uuid=' + data.uuid;
+                                console.log("Success", result);
+                                window.location.href = 'sukses?uuid=' + data.uuid;
                             },
                             onPending: function(result){
-                                // Pending (misal pilih VA tapi belum bayar) -> Ke Status Page
-                                window.location.href = 'status.php?uuid=' + data.uuid;
+                                window.location.href = 'status?uuid=' + data.uuid;
                             },
                             onError: function(result){
                                 Swal.fire('Gagal', 'Pembayaran gagal.', 'error');
@@ -241,7 +241,7 @@ if (!isset($_SESSION['plg_meja_id'])) {
                                 // [PENTING] Jika di-close, JANGAN kembali ke cart, tapi ke Status Page
                                 // Agar user bisa bayar ulang (Resume) tanpa buat order baru
                                 console.log('Closed without payment');
-                                window.location.href = 'status.php?uuid=' + data.uuid;
+                                window.location.href = 'status?uuid=' + data.uuid;
                             }
                         });
                     }
@@ -255,8 +255,7 @@ if (!isset($_SESSION['plg_meja_id'])) {
                             confirmButtonText: 'Lanjut'
                         })
                         .then(() => {
-                            // Arahkan ke status.php
-                            window.location.href = 'status.php?uuid=' + data.uuid;
+                            window.location.href = 'status?uuid=' + data.uuid;
                         });
                     }
                 } else {
