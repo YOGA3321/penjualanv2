@@ -1,6 +1,6 @@
 <?php
 session_start();
-if (!isset($_SESSION['user_id'])) { header("Location: ../login.php"); exit; }
+if (!isset($_SESSION['user_id'])) { header("Location: ../login"); exit; }
 require_once '../auth/koneksi.php';
 
 $page_title = "Riwayat Transaksi";
@@ -173,6 +173,8 @@ include '../layouts/admin/header.php';
                     </li>
                 <?php endfor; ?>
 
+                <?php 
+                // [FIXED] Tag PHP ditambahkan disini agar logika IF tidak bocor jadi teks HTML
                 if($end_loop < $total_pages) {
                     if($end_loop < $total_pages - 1) echo '<li class="page-item disabled"><span class="page-link">...</span></li>';
                     echo '<li class="page-item"><a class="page-link" href="?page='.$total_pages.'">'.$total_pages.'</a></li>';
@@ -252,7 +254,7 @@ function showDetail(uuid) {
             
             const badge = document.getElementById('d_status_pesanan');
             badge.innerText = h.status_pembayaran.toUpperCase();
-            badge.className = 'badge ' + (h.status_pembayaran === 'settlement' ? 'bg-success' : 'bg-secondary');
+            badge.className = 'badge ' + (h.status_pembayaran === 'settlement' ? 'bg-success' : 'bg-warning');
 
             let htmlItems = '';
             data.items.forEach(item => {
