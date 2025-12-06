@@ -95,9 +95,17 @@ echo json_encode(['status' => 'success', 'data' => $trx]);
 // --- FUNGSI BANTUAN UPDATE DB & STOK ---
 function updateStatusTransaksi($new_status, $uuid, $trx_data, $koneksi) {
     if ($new_status == 'settlement') {
-        $koneksi->query("UPDATE transaksi SET status_pembayaran = 'settlement', status_pesanan = 'diproses' WHERE uuid = '$uuid'");
-    } 
-    else if ($new_status == 'cancel') {
+            $koneksi->query("UPDATE transaksi SET status_pembayaran = 'settlement', status_pesanan = 'diproses' WHERE uuid = '$uuid'");
+            
+            $t_poin = $trx['poin_didapat'];
+            $t_uid = $trx['user_id'];
+            
+            if ($t_uid && $t_poin > 0) {
+                $koneksi->query("UPDATE users SET poin = poin + $t_poin WHERE id = '$t_uid'");
+            }
+
+            $trx['status_pembayaran'] = 'settlement';
+    }else if ($new_status == 'cancel') {
         // 1. Update Status
         $koneksi->query("UPDATE transaksi SET status_pembayaran = 'cancel', status_pesanan = 'cancel' WHERE uuid = '$uuid'");
         

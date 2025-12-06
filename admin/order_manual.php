@@ -6,12 +6,10 @@ require_once '../auth/koneksi.php';
 $page_title = "Pesanan Manual (Kasir)";
 $active_menu = "order_manual";
 
-// 1. PROSES SET MEJA & CABANG
 if(isset($_POST['mulai_pesanan'])) {
     $_SESSION['kasir_nama_pelanggan'] = $_POST['nama_pelanggan'];
     $_SESSION['kasir_meja_id'] = $_POST['meja_id'];
     
-    // Ambil Info Meja & Cabang
     $m = $koneksi->query("SELECT m.nomor_meja, c.id as id_cabang, c.nama_cabang 
                           FROM meja m 
                           JOIN cabang c ON m.cabang_id = c.id 
@@ -21,16 +19,13 @@ if(isset($_POST['mulai_pesanan'])) {
     $_SESSION['kasir_cabang_id'] = $m['id_cabang']; 
     $_SESSION['kasir_nama_cabang'] = $m['nama_cabang'];
     
-    header("Location: kasir_transaksi.php");
-    exit;
+    header("Location: kasir_transaksi.php"); exit;
 }
 
-// 2. LOGIKA TAMPILAN CABANG
 $level = $_SESSION['level'];
 $view_cabang = ($level == 'admin') ? ($_SESSION['view_cabang_id'] ?? 'pusat') : $_SESSION['cabang_id'];
 $is_global = ($view_cabang == 'pusat');
 
-// Ambil Daftar Cabang (Hanya jika Global)
 $list_cabang = [];
 if($is_global) {
     $q_cab = $koneksi->query("SELECT * FROM cabang");
@@ -48,7 +43,6 @@ include '../layouts/admin/header.php';
             </div>
             <div class="card-body p-4">
                 <form method="POST" id="formMulai">
-                    
                     <div class="mb-3">
                         <label class="form-label fw-bold text-muted">Nama Pelanggan</label>
                         <input type="text" name="nama_pelanggan" class="form-control form-control-lg" placeholder="Contoh: Budi" required>
@@ -63,21 +57,32 @@ include '../layouts/admin/header.php';
                                     <option value="<?= $c['id'] ?>"><?= $c['nama_cabang'] ?></option>
                                 <?php endforeach; ?>
                             </select>
-                            <small class="text-warning"><i class="fas fa-exclamation-triangle"></i> Pilih cabang untuk melihat meja yang tersedia.</small>
                         </div>
-                        
                         <div class="mb-4">
-                            <label class="form-label fw-bold text-muted">Pilih Meja Kosong</label>
+                            <label class="form-label fw-bold text-muted">Pilih Meja</label>
                             <select name="meja_id" id="pilih_meja" class="form-select form-select-lg" disabled required>
                                 <option value="">-- Pilih Cabang Dulu --</option>
                             </select>
                         </div>
-
                     <?php else: ?>
                         <?php 
-                            // [FIX] HANYA TAMPILKAN MEJA KOSONG
+                            // [FIX FILTER MEJA AGESIF]
                             $target = ($level == 'admin') ? $view_cabang : $_SESSION['cabang_id'];
-                            $q_meja = $koneksi->query("SELECT * FROM meja WHERE cabang_id = '$target' AND status = 'kosong' ORDER BY CAST(nomor_meja AS UNSIGNED) ASC");
+                            $now = date('Y-m-d H:i:s');
+                            
+                            // Cari Meja Kosong DAN Tidak ada Reservasi Aktif (H-15 s/d Durasi Selesai)
+                            $q_meja = $koneksi->query("
+                                SELECT * FROM meja m 
+                                WHERE m.cabang_id = '$target' 
+                                AND m.status = 'kosong'
+                                AND m.id NOT IN (
+                                    SELECT meja_id FROM reservasi 
+                                    WHERE status IN ('pending', 'checkin') 
+                                    AND '$now' BETWEEN DATE_SUB(waktu_reservasi, INTERVAL 15 MINUTE) 
+                                                   AND DATE_ADD(waktu_reservasi, INTERVAL durasi_menit MINUTE)
+                                )
+                                ORDER BY CAST(m.nomor_meja AS UNSIGNED) ASC
+                            ");
                         ?>
                         <div class="mb-4">
                             <label class="form-label fw-bold text-muted">Pilih Meja Kosong</label>
@@ -88,7 +93,7 @@ include '../layouts/admin/header.php';
                                         <option value="<?= $m['id'] ?>">Meja <?= $m['nomor_meja'] ?></option>
                                     <?php endwhile; ?>
                                 <?php else: ?>
-                                    <option value="" disabled>Semua meja penuh!</option>
+                                    <option value="" disabled>Semua meja penuh / direservasi!</option>
                                 <?php endif; ?>
                             </select>
                         </div>
@@ -112,26 +117,29 @@ function loadMeja(cabangId) {
     mejaSelect.innerHTML = '<option>Memuat...</option>';
     mejaSelect.disabled = true;
 
-    // [FIX] HANYA AMBIL MEJA KOSONG DARI SEMUA CABANG
+    // [FIX JS FILTER]
     <?php 
         $all_meja = [];
-        $q_all = $koneksi->query("SELECT id, cabang_id, nomor_meja FROM meja WHERE status = 'kosong' ORDER BY CAST(nomor_meja AS UNSIGNED) ASC");
+        $now = date('Y-m-d H:i:s');
+        $q_all = $koneksi->query("
+            SELECT id, cabang_id, nomor_meja FROM meja m
+            WHERE status = 'kosong'
+            AND m.id NOT IN (
+                SELECT meja_id FROM reservasi 
+                WHERE status IN ('pending', 'checkin') 
+                AND '$now' BETWEEN DATE_SUB(waktu_reservasi, INTERVAL 15 MINUTE) AND DATE_ADD(waktu_reservasi, INTERVAL durasi_menit MINUTE)
+            )
+            ORDER BY CAST(nomor_meja AS UNSIGNED) ASC
+        ");
         while($am = $q_all->fetch_assoc()) $all_meja[] = $am;
     ?>
-    
     const dbMeja = <?= json_encode($all_meja) ?>;
     
-    // Filter di Javascript
     let html = '<option value="" selected disabled>-- Pilih Meja --</option>';
     const filtered = dbMeja.filter(m => m.cabang_id == cabangId);
     
-    if(filtered.length === 0) {
-        html = '<option value="" disabled>Semua meja di cabang ini penuh!</option>';
-    } else {
-        filtered.forEach(m => {
-            html += `<option value="${m.id}">Meja ${m.nomor_meja}</option>`;
-        });
-    }
+    if(filtered.length === 0) html = '<option value="" disabled>Semua meja penuh/reservasi</option>';
+    else filtered.forEach(m => { html += `<option value="${m.id}">Meja ${m.nomor_meja}</option>`; });
     
     mejaSelect.innerHTML = html;
     mejaSelect.disabled = false;
