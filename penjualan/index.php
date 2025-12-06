@@ -23,7 +23,6 @@ if (isset($_GET['token'])) {
                 $error_msg = "Maaf, Meja ini sudah direservasi pelanggan lain.";
             } else {
                 $koneksi->query("UPDATE reservasi SET status='checkin' WHERE id='".$res_data['id']."'");
-                // Set Session Meja
                 $_SESSION['plg_meja_id'] = $info['id'];
                 $_SESSION['plg_no_meja'] = $info['nomor_meja'];
                 $_SESSION['plg_cabang_id'] = $info['id_cabang'];
@@ -154,7 +153,6 @@ $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_
                     $is_promo = ($m['is_promo'] == 1 && $m['harga_promo'] > 0);
                     $harga_tampil = $is_promo ? $m['harga_promo'] : $m['harga'];
                     
-                    // JSON Safe Encode
                     $data_js = htmlspecialchars(json_encode([
                         'id' => $m['id'],
                         'nama' => $m['nama_menu'],
@@ -246,11 +244,10 @@ $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_
     <script src="https://app.sandbox.midtrans.com/snap/snap.js" data-client-key="SB-Mid-client-m2n6kBqd8rsKrRST"></script>
     
     <script>
-    let cart = [];
+    let cart = JSON.parse(localStorage.getItem('cart_v2')) || [];
     let activeVoucher = null;
     const bsOffcanvas = new bootstrap.Offcanvas('#cartModal');
 
-    // Auto Prompt Login
     <?php if(!$is_logged_in): ?>
     window.onload = () => {
         if(!sessionStorage.getItem('seen_prompt')) {
@@ -265,7 +262,6 @@ $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_
     };
     <?php endif; ?>
 
-    // Search Logic
     document.getElementById('searchMenu').addEventListener('keyup', function() {
         let val = this.value.toLowerCase();
         document.querySelectorAll('.menu-item').forEach(el => {
@@ -274,9 +270,7 @@ $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_
     });
 
     function addToCart(item) {
-        // Force number type
         item.harga = parseFloat(item.harga); 
-        
         let exist = cart.find(c => c.id === item.id);
         if(exist) {
             if(exist.qty < item.stok) exist.qty++;
@@ -285,6 +279,7 @@ $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_
             cart.push({...item, qty: 1});
         }
         updateUI();
+        localStorage.setItem('cart_v2', JSON.stringify(cart));
         Swal.fire({toast:true, position:'bottom', icon:'success', title: item.nama + ' +1', showConfirmButton:false, timer:1000});
     }
 
@@ -296,6 +291,7 @@ $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_
             else return Swal.fire({toast:true, icon:'warning', title:'Stok mentok'});
         }
         updateUI();
+        localStorage.setItem('cart_v2', JSON.stringify(cart));
     }
 
     function updateUI() {
@@ -325,21 +321,11 @@ $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_
             });
         }
 
-        // Voucher Logic
         let diskon = 0;
         if(activeVoucher) {
             let nilai = parseFloat(activeVoucher.val);
-            let min = parseFloat(activeVoucher.min);
-            
-            if(sub < min) {
-                activeVoucher = null;
-                document.getElementById('voucherMsg').style.display = 'none';
-                document.getElementById('inputVoucher').value = '';
-                Swal.fire({toast:true, icon:'info', title:'Voucher dilepas (Min. Belanja)'});
-            } else {
-                if(activeVoucher.type === 'fixed') diskon = nilai;
-                else diskon = sub * (nilai / 100);
-            }
+            if(activeVoucher.type === 'fixed') diskon = nilai;
+            else diskon = sub * (nilai / 100);
         }
         
         if(diskon > sub) diskon = sub;
@@ -348,7 +334,6 @@ $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_
         document.getElementById('cartListContainer').innerHTML = html;
         document.getElementById('totalQty').innerText = qty;
         document.getElementById('totalPrice').innerText = 'Rp ' + totalBayar.toLocaleString('id-ID');
-        
         document.getElementById('subtotalDisplay').innerText = 'Rp ' + sub.toLocaleString('id-ID');
         document.getElementById('totalDisplay').innerText = 'Rp ' + totalBayar.toLocaleString('id-ID');
         
@@ -368,7 +353,6 @@ $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_
         let sub = cart.reduce((a,b) => a + (b.harga * b.qty), 0);
         
         if(!kode) return Swal.fire({toast:true, icon:'warning', title:'Isi kode voucher'});
-        if(sub === 0) return Swal.fire({toast:true, icon:'warning', title:'Belanja dulu'});
         
         fetch(`api_voucher.php?kode=${kode}&total=${sub}`)
         .then(r=>r.json())
@@ -376,20 +360,13 @@ $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_
             let msg = document.getElementById('voucherMsg');
             msg.style.display = 'block';
             if(d.valid) {
-                activeVoucher = { code: d.kode, type: d.tipe, val: parseFloat(d.potongan), min: 0 }; // Potongan sudah dihitung backend atau ambil raw value dari DB (disini ambil hasil hitung fixed sementara)
-                // Idealnya backend kirim raw value, tapi untuk simplifikasi kita percaya backend
-                // Revisi: Kita ambil raw type & value dari backend agar kalkulasi JS reaktif
-                // Tapi api_voucher.php kita tadi mengembalikan 'potongan' hasil hitung.
-                // Agar aman, kita simpan potongan nominal saja (Fixed).
+                activeVoucher = { code: d.kode, type: d.tipe, val: parseFloat(d.potongan), min: 0 }; // Kita ambil 'potongan' dari server sebagai nilai fix
+                
+                // Override logika client-side agar konsisten dengan server
+                activeVoucher = { type: 'fixed', val: parseFloat(d.potongan) };
                 
                 msg.className = 'mt-2 small fw-bold text-success';
-                msg.innerText = "✅ Voucher Aktif: Hemat Rp " + parseInt(d.potongan).toLocaleString();
-                
-                // Override activeVoucher agar statis (karena backend sudah hitung)
-                // Atau panggil ulang API saat qty berubah?
-                // Untuk mudahnya: Kita pakai mode FIXED DISCOUNT dari hasil backend.
-                activeVoucher = { type: 'fixed', val: parseFloat(d.potongan), min: 0 };
-                
+                msg.innerText = "✅ Voucher " + d.kode + " aktif!";
                 updateUI();
             } else {
                 msg.className = 'mt-2 small fw-bold text-danger';
@@ -406,14 +383,19 @@ $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_
         
         let sub = cart.reduce((a,b) => a + (b.harga * b.qty), 0);
         let diskon = 0;
-        if(activeVoucher) diskon = activeVoucher.val; // Sudah fixed dari backend
+        
+        // Kalkulasi ulang diskon di saat checkout untuk akurasi
+        if(activeVoucher) {
+             diskon = activeVoucher.val; // Sudah fix dari backend saat cek voucher
+        }
+        if(diskon > sub) diskon = sub;
         
         let payload = {
             items: cart,
             nama_pelanggan: nama,
             total_harga: sub - diskon,
             diskon: diskon,
-            kode_voucher: document.getElementById('inputVoucher').value,
+            kode_voucher: activeVoucher ? document.getElementById('inputVoucher').value : null, // Ambil kode dari input
             metode: metode
         };
 
@@ -427,12 +409,13 @@ $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_
             if(d.status === 'success') {
                 if(metode === 'midtrans' && d.snap_token) {
                     window.snap.pay(d.snap_token, {
-                        onSuccess: () => finish(d.uuid),
-                        onPending: () => finish(d.uuid),
+                        onSuccess: () => finish(true, d.uuid),
+                        onPending: () => finish(true, d.uuid),
                         onError: () => Swal.fire('Gagal', 'Pembayaran gagal', 'error')
                     });
                 } else {
-                    finish(d.uuid);
+                    // [FIX] Tunai -> ke Konfirmasi Tunai
+                    window.location.href = 'konfirmasi_tunai.php?uuid=' + d.uuid;
                 }
             } else {
                 Swal.fire('Gagal', d.message, 'error');
@@ -440,10 +423,10 @@ $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_
         });
     }
 
-    function finish(uuid) {
+    function finish(isMidtrans, uuid) {
         Swal.fire({icon:'success', title:'Pesanan Berhasil!', timer:2000, showConfirmButton:false})
         .then(() => {
-            // [FIX URL REDIRECT] Pastikan parameter UUID benar
+            // Midtrans -> Sukses Page / Riwayat
             <?php if($is_logged_in): ?>
                 window.location.href = '../pelanggan/riwayat.php';
             <?php else: ?>
@@ -453,7 +436,7 @@ $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_
     }
 
     <?php if (isset($_SESSION['force_reset_cart'])): ?>
-    document.addEventListener('DOMContentLoaded', function() { cart = []; updateUI(); });
+    document.addEventListener('DOMContentLoaded', function() { localStorage.removeItem('cart_v2'); cart = []; updateUI(); });
     <?php unset($_SESSION['force_reset_cart']); endif; ?>
     </script>
 
