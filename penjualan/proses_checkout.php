@@ -105,17 +105,20 @@ if ($stmt->execute()) {
     $stmt_stok = $koneksi->prepare("UPDATE menu SET stok = stok - ? WHERE id = ?");
     
     foreach ($items as $item) {
-        // [FIX PERBAIKAN DISINI] 
-        // Menggunakan 'qty' sesuai key dari Javascript, bukan 'quantity'
-        $qty = isset($item['qty']) ? $item['qty'] : (isset($item['quantity']) ? $item['quantity'] : 1); 
+        // [FIX] Normalisasi Key dari Javascript
+        // Kadang JS kirim 'quantity', kadang 'qty'
+        $qty = isset($item['qty']) ? $item['qty'] : (isset($item['quantity']) ? $item['quantity'] : 1);
         
-        $harga = $item['harga']; // Pastikan JS kirim 'harga', bukan 'price' (sesuaikan dgn JS Anda)
-        // Jika JS kirim 'price', gunakan: $harga = $item['price'];
+        // Kadang JS kirim 'price', kadang 'harga'
+        $harga = isset($item['price']) ? $item['price'] : (isset($item['harga']) ? $item['harga'] : 0);
         
+        // Pastikan angka
+        $qty = (int)$qty;
+        $harga = (int)$harga;
+
         $sub = $harga * $qty;
-        $catatan = isset($item['note']) ? $item['note'] : ''; 
         
-        $stmt_detail->bind_param("iiidss", $trx_id, $item['id'], $qty, $harga, $sub, $catatan);
+        $stmt_detail->bind_param("iiidd", $trx_id, $item['id'], $qty, $harga, $sub);
         $stmt_detail->execute();
         
         $stmt_stok->bind_param("ii", $qty, $item['id']);
