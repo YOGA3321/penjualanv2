@@ -1,7 +1,6 @@
 <?php
 session_start();
 require_once '../auth/koneksi.php';
-// Cek sesi meja wajib ada
 if (!isset($_SESSION['plg_meja_id'])) { header("Location: index.php"); exit; }
 ?>
 <!DOCTYPE html>
@@ -34,7 +33,7 @@ if (!isset($_SESSION['plg_meja_id'])) { header("Location: index.php"); exit; }
                     <input type="text" id="namaPelanggan" class="form-control" value="<?= $_SESSION['nama'] ?? '' ?>" required>
                 </div>
                 
-                <label class="form-label small text-muted fw-bold">Punya Kode Voucher?</label>
+                <label class="form-label small text-muted fw-bold">Kode Voucher</label>
                 <div class="input-group mb-2">
                     <input type="text" id="voucherCode" class="form-control text-uppercase" placeholder="Masukan Kode">
                     <button class="btn btn-dark" type="button" onclick="cekVoucher()">Pakai</button>
@@ -79,11 +78,19 @@ if (!isset($_SESSION['plg_meja_id'])) { header("Location: index.php"); exit; }
         let cart = JSON.parse(localStorage.getItem('cart_v2')) || [];
         let totalBelanja = 0;
 
+        // Fungsi Aman Parsing Angka (Anti NaN)
+        function parseHarga(val) {
+            if (!val) return 0;
+            // Ubah ke string, hapus semua karakter kecuali angka dan titik/koma
+            let str = String(val).replace(/[^0-9]/g, ''); 
+            let num = parseInt(str);
+            return isNaN(num) ? 0 : num;
+        }
+
         function renderCart() {
             if (cart.length === 0) {
                 document.getElementById('cartList').innerHTML = '<div class="text-center py-5 text-muted">Keranjang kosong.</div>';
                 document.getElementById('formCard').style.display = 'none';
-                // Reset nilai jika kosong
                 totalBelanja = 0;
                 hitungTotal();
                 return;
@@ -94,9 +101,9 @@ if (!isset($_SESSION['plg_meja_id'])) { header("Location: index.php"); exit; }
             totalBelanja = 0;
 
             cart.forEach((item, index) => {
-                // [FIX] Normalisasi nama variabel agar tidak NaN
-                let qty = parseInt(item.quantity || item.qty || 1);
-                let price = parseInt(item.price || item.harga || 0);
+                // Gunakan parseHarga agar aman dari string aneh
+                let qty = parseHarga(item.quantity || item.qty || 1);
+                let price = parseHarga(item.price || item.harga || 0);
                 
                 let sub = price * qty;
                 totalBelanja += sub;
@@ -127,7 +134,6 @@ if (!isset($_SESSION['plg_meja_id'])) { header("Location: index.php"); exit; }
             const kode = document.getElementById('voucherCode').value;
             const msg = document.getElementById('voucherMsg');
             
-            // Validasi sederhana sebelum fetch
             if(!kode) {
                 msg.className = "d-block mb-2 text-danger";
                 msg.innerText = "Masukkan kode dulu";
@@ -135,20 +141,18 @@ if (!isset($_SESSION['plg_meja_id'])) { header("Location: index.php"); exit; }
             }
             if(totalBelanja <= 0) {
                 msg.className = "d-block mb-2 text-danger";
-                msg.innerText = "Belanja dulu sebelum pakai voucher";
+                msg.innerText = "Belanja dulu bos!";
                 return;
             }
 
             msg.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Mengecek...';
             
-            // Panggil API Voucher
             fetch(`api_voucher.php?kode=${kode}&total=${totalBelanja}`)
-            .then(r => r.json())
-            .then(d => {
+            .then(r => r.json()).then(d => {
                 if(d.valid) {
                     msg.className = "d-block mb-2 text-success fw-bold";
                     msg.innerHTML = `<i class="fas fa-check-circle"></i> ${d.msg}`;
-                    document.getElementById('diskonVal').value = parseInt(d.potongan) || 0; // Pastikan integer
+                    document.getElementById('diskonVal').value = parseInt(d.potongan) || 0;
                     document.getElementById('kodeVal').value = d.kode;
                 } else {
                     msg.className = "d-block mb-2 text-danger";
@@ -159,22 +163,21 @@ if (!isset($_SESSION['plg_meja_id'])) { header("Location: index.php"); exit; }
                 hitungTotal();
             })
             .catch(err => {
-                console.error(err);
                 msg.className = "d-block mb-2 text-danger";
-                msg.innerText = "Gagal mengecek voucher";
+                msg.innerText = "Gagal koneksi";
             });
         }
 
         function hitungTotal() {
             let diskon = parseInt(document.getElementById('diskonVal').value) || 0;
             
-            // [FIX] Cegah Diskon lebih besar dari total (Minus)
-            if(diskon > totalBelanja) diskon = totalBelanja;
+            // Proteksi: Diskon tidak boleh lebih besar dari total
+            if (diskon > totalBelanja) diskon = totalBelanja;
             
             let final = totalBelanja - diskon;
             
-            // [FIX] Cegah NaN
-            if(isNaN(final)) final = 0;
+            // Proteksi Akhir: Jangan sampai NaN
+            if (isNaN(final) || final < 0) final = 0;
 
             document.getElementById('subTotal').innerText = 'Rp ' + totalBelanja.toLocaleString('id-ID');
             document.getElementById('diskonDisplay').innerText = '-Rp ' + diskon.toLocaleString('id-ID');
@@ -187,16 +190,12 @@ if (!isset($_SESSION['plg_meja_id'])) { header("Location: index.php"); exit; }
             const diskon = parseInt(document.getElementById('diskonVal').value) || 0;
             const kodeV = document.getElementById('kodeVal').value;
             
-            if(!nama) return Swal.fire('Nama Wajib', 'Harap isi nama pemesan', 'warning');
-            
-            // [FIX] Validasi Total 0 (Kecuali memang gratis karena voucher)
-            // Tapi biasanya minimal pembayaran Rp 100 perak untuk Midtrans/System
-            let totalAkhir = totalBelanja - diskon;
-            if(totalAkhir <= 0 && metode === 'midtrans') {
-                 return Swal.fire('Error', 'Pembayaran QRIS minimal Rp 1. Gunakan Tunai jika gratis.', 'warning');
-            }
-            if(cart.length === 0) return Swal.fire('Error', 'Keranjang kosong', 'warning');
+            if(!nama) return Swal.fire('Wajib', 'Nama harus diisi', 'warning');
+            if(totalBelanja <= 0) return Swal.fire('Error', 'Keranjang kosong / nilai 0', 'error');
 
+            let totalAkhir = totalBelanja - diskon;
+            
+            // Data Payload
             let payload = {
                 nama_pelanggan: nama,
                 metode: metode,
@@ -213,7 +212,6 @@ if (!isset($_SESSION['plg_meja_id'])) { header("Location: index.php"); exit; }
             }).then(r=>r.json()).then(d => {
                 if(d.status === 'success') {
                     localStorage.removeItem('cart_v2'); 
-                    
                     if(metode === 'midtrans' && d.snap_token) {
                         window.snap.pay(d.snap_token, {
                             onSuccess: function(){ window.location.href = 'sukses.php?uuid='+d.uuid; },
@@ -229,7 +227,6 @@ if (!isset($_SESSION['plg_meja_id'])) { header("Location: index.php"); exit; }
             }).catch(err => Swal.fire('Error', 'Koneksi terputus', 'error'));
         }
 
-        // Init pertama kali
         renderCart();
     </script>
 </body>
