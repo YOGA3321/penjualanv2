@@ -2,11 +2,11 @@
 session_start();
 require_once '../auth/koneksi.php';
 
-// --- 1. LOGIKA PENANGANAN TOKEN (SCAN QR) ---
+// --- 1. PROSES QR CODE TOKEN ---
 if (isset($_GET['token'])) {
     $token = $koneksi->real_escape_string($_GET['token']);
     
-    // Ambil info meja
+    // Cari Meja
     $query = "SELECT meja.*, cabang.nama_cabang, cabang.id as id_cabang 
               FROM meja 
               JOIN cabang ON meja.cabang_id = cabang.id 
@@ -16,34 +16,33 @@ if (isset($_GET['token'])) {
     
     if ($result->num_rows > 0) {
         $info = $result->fetch_assoc();
-        $session_meja_id = $_SESSION['plg_meja_id'] ?? 0;
-
-        // Cek Status Meja
+        $meja_id = $info['id'];
+        
+        // Logika Meja Penuh / Re-order
         if ($info['status'] == 'terisi') {
-            // Jika orang yang sama (Re-order), biarkan masuk
-            if ($session_meja_id == $info['id']) {
-                header("Location: index.php"); 
-                exit;
+            // Cek apakah ini sesi saya sendiri (Re-order)?
+            if (isset($_SESSION['plg_meja_id']) && $_SESSION['plg_meja_id'] == $meja_id) {
+                // Orang yang sama, biarkan masuk (Refresh halaman bersih)
+                header("Location: index.php"); exit;
             } else {
                 $error_msg = "Meja ini sedang digunakan pelanggan lain.";
             }
         } else {
-            // Pelanggan Baru
+            // Meja Kosong -> Pelanggan Baru
             $_SESSION['plg_meja_id'] = $info['id'];
             $_SESSION['plg_no_meja'] = $info['nomor_meja'];
             $_SESSION['plg_cabang_id'] = $info['id_cabang'];
             $_SESSION['plg_nama_cabang'] = $info['nama_cabang'];
-            $_SESSION['force_reset_cart'] = true; // Reset keranjang lama
+            $_SESSION['force_reset_cart'] = true; // Hapus keranjang lama
             
-            header("Location: index.php"); 
-            exit;
+            header("Location: index.php"); exit;
         }
     } else {
         $error_msg = "QR Code tidak valid!";
     }
 }
 
-// --- 2. JIKA BELUM ADA SESI -> TAMPILKAN SCANNER ---
+// --- 2. TAMPILAN BLOCKER (JIKA BELUM SCAN) ---
 if (!isset($_SESSION['plg_meja_id']) || isset($error_msg)) {
     ?>
     <!DOCTYPE html>
@@ -55,22 +54,20 @@ if (!isset($_SESSION['plg_meja_id']) || isset($error_msg)) {
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
         <style>
-            body { display: flex; align-items: center; justify-content: center; height: 100vh; background: #f8f9fa; font-family: 'Poppins', sans-serif; }
-            .scan-card { max-width: 400px; width: 90%; text-align: center; padding: 40px 30px; background: white; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
-            .scan-icon { font-size: 4rem; color: #6366f1; margin-bottom: 20px; animation: pulse 2s infinite; }
-            @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+            body { display: flex; align-items: center; justify-content: center; height: 100vh; background: #f8f9fa; font-family: sans-serif; }
+            .card-scan { max-width: 400px; width: 90%; text-align: center; padding: 40px 30px; background: white; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
         </style>
     </head>
     <body>
-        <div class="scan-card">
-            <div class="scan-icon"><i class="fas fa-qrcode"></i></div>
+        <div class="card-scan">
+            <div class="mb-4 text-primary" style="font-size: 4rem;"><i class="fas fa-qrcode"></i></div>
             <?php if(isset($error_msg)): ?>
-                <div class="alert alert-danger fw-bold"><i class="fas fa-exclamation-circle me-1"></i> <?= $error_msg ?></div>
-                <a href="index.php" class="btn btn-outline-secondary rounded-pill btn-sm mt-2">Coba Lagi</a>
+                <h4 class="fw-bold text-danger">Oops!</h4>
+                <p class="text-muted"><?= $error_msg ?></p>
+                <a href="index.php" class="btn btn-outline-secondary rounded-pill mt-2">Coba Lagi</a>
             <?php else: ?>
-                <h3 class="fw-bold mb-2">Selamat Datang!</h3>
-                <p class="text-muted mb-4">Silakan scan QR Code di meja untuk memesan.</p>
-                <button disabled class="btn btn-primary w-100 rounded-pill py-2 shadow-sm">Gunakan Kamera HP Anda</button>
+                <h3 class="fw-bold">Selamat Datang!</h3>
+                <p class="text-muted">Silakan scan QR Code di meja Anda.</p>
             <?php endif; ?>
         </div>
     </body>
@@ -78,11 +75,11 @@ if (!isset($_SESSION['plg_meja_id']) || isset($error_msg)) {
     <?php exit;
 }
 
-// --- 3. LOGIKA MENU ---
+// --- 3. LOAD MENU (PELANGGAN VALID) ---
 $cabang_id = $_SESSION['plg_cabang_id'];
-$is_logged_in = isset($_SESSION['user_id']); // Cek Login
+$is_logged_in = isset($_SESSION['user_id']); 
 
-// Ambil Menu
+// Ambil Menu Aktif
 $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_menu k ON m.kategori_id = k.id WHERE (m.cabang_id = '$cabang_id' OR m.cabang_id IS NULL) AND m.stok > 0 AND m.is_active = 1 ORDER BY k.id ASC");
 ?>
 <!DOCTYPE html>
@@ -136,7 +133,7 @@ $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_
     <div class="container">
         <div class="search-box">
             <i class="fas fa-search text-muted me-2"></i>
-            <input type="text" id="searchMenu" placeholder="Cari menu...">
+            <input type="text" id="searchMenu" placeholder="Cari makanan kesukaanmu...">
         </div>
 
         <h6 class="fw-bold mb-3">Menu Tersedia</h6>
@@ -146,11 +143,11 @@ $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_
                     $is_promo = ($m['is_promo'] == 1 && $m['harga_promo'] > 0);
                     $harga_tampil = $is_promo ? $m['harga_promo'] : $m['harga'];
                     
-                    // [FIX] Pastikan harga dikirim sebagai Integer bersih ke JS
+                    // [FIX] Pastikan Data Angka Bersih (Int/Float) untuk JS
                     $data_js = htmlspecialchars(json_encode([
                         'id' => $m['id'],
                         'nama' => $m['nama_menu'],
-                        'harga' => (int)$harga_tampil, 
+                        'harga' => (float)$harga_tampil, // Force Float/Int
                         'stok' => (int)$m['stok']
                     ]), ENT_QUOTES, 'UTF-8');
                 ?>
@@ -250,7 +247,27 @@ $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_
     let activeVoucher = null;
     const bsOffcanvas = new bootstrap.Offcanvas('#cartModal');
 
-    // Filter Search
+    // Auto Login Prompt (Fitur Cerdas Anda)
+    <?php if(!$is_logged_in): ?>
+    window.onload = () => {
+        if(!sessionStorage.getItem('seen_prompt')) {
+            Swal.fire({
+                title: 'Halo!',
+                text: 'Login biar dapet poin & promo member?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Ya, Login',
+                cancelButtonText: 'Nanti Saja',
+                reverseButtons: true
+            }).then((res) => {
+                sessionStorage.setItem('seen_prompt', '1');
+                if(res.isConfirmed) window.location.href='../login.php';
+            });
+        }
+    };
+    <?php endif; ?>
+
+    // Search Logic
     document.getElementById('searchMenu').addEventListener('keyup', function() {
         let val = this.value.toLowerCase();
         document.querySelectorAll('.menu-item').forEach(el => {
@@ -259,6 +276,9 @@ $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_
     });
 
     function addToCart(item) {
+        // [FIX] Validasi tipe data harga
+        item.harga = parseFloat(item.harga); 
+        
         let exist = cart.find(c => c.id === item.id);
         if(exist) {
             if(exist.qty < item.stok) exist.qty++;
@@ -291,7 +311,7 @@ $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_
             document.getElementById('floatingCart').style.display = 'flex';
             cart.forEach((c, i) => {
                 qty += c.qty;
-                sub += c.harga * c.qty;
+                sub += c.harga * c.qty; // Pastikan c.harga adalah Number
                 html += `
                 <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
                     <div>
@@ -307,35 +327,33 @@ $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_
             });
         }
 
-        // --- FIX NAN: LOGIKA VOUCHER ---
+        // [FIX] LOGIKA HITUNG VOUCHER (Mencegah NaN)
         let diskon = 0;
         if(activeVoucher) {
-            // Konversi ke Float untuk keamanan Matematika
-            let nilaiVoc = parseFloat(activeVoucher.val); 
-            let minBelanja = parseFloat(activeVoucher.min);
-
-            if(sub < minBelanja) {
-                // Lepas voucher jika kurang dari min belanja
+            let nilai = parseFloat(activeVoucher.val);
+            let min = parseFloat(activeVoucher.min);
+            
+            if(sub < min) {
+                // Auto-lepas voucher jika subtotal turun
                 activeVoucher = null;
                 document.getElementById('voucherMsg').style.display = 'none';
                 document.getElementById('inputVoucher').value = '';
                 Swal.fire({toast:true, icon:'info', title:'Voucher dilepas (Kurang dari min. belanja)'});
             } else {
+                // Hitung diskon
                 if(activeVoucher.type === 'fixed') {
-                    diskon = nilaiVoc;
+                    diskon = nilai;
                 } else {
-                    diskon = sub * (nilaiVoc / 100);
+                    diskon = sub * (nilai / 100);
                 }
             }
         }
         
-        // Safety check agar diskon tidak error
-        if(isNaN(diskon)) diskon = 0;
+        // Safety Math
         if(diskon > sub) diskon = sub;
-        
         let totalBayar = sub - diskon;
         
-        // Render
+        // Render Text
         document.getElementById('cartListContainer').innerHTML = html;
         document.getElementById('totalQty').innerText = qty;
         document.getElementById('totalPrice').innerText = 'Rp ' + totalBayar.toLocaleString('id-ID');
@@ -357,13 +375,16 @@ $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_
     function cekVoucher() {
         let kode = document.getElementById('inputVoucher').value;
         let sub = cart.reduce((a,b) => a + (b.harga * b.qty), 0);
-        if(!kode) return;
         
+        if(!kode) return Swal.fire({toast:true, icon:'warning', title:'Isi kode voucher'});
+        if(sub === 0) return Swal.fire({toast:true, icon:'warning', title:'Belanja dulu'});
+        
+        // Panggil API
         fetch(`api_voucher.php?kode=${kode}&total=${sub}`)
         .then(r=>r.json())
         .then(d => {
             if(d.valid) {
-                // [FIX] Simpan data voucher dengan parsing Float
+                // [FIX] Parsing Number dari JSON string
                 activeVoucher = {
                     code: d.kode, 
                     type: d.tipe, 
@@ -390,9 +411,7 @@ $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_
     function checkout(metode) {
         let nama = document.getElementById('namaPelanggan').value;
         if(!nama && !<?= $is_logged_in ? 'true' : 'false' ?>) return Swal.fire('Info', 'Nama pemesan wajib diisi', 'warning');
-        if(cart.length === 0) return;
-
-        // Hitung ulang untuk payload
+        
         let sub = cart.reduce((a,b) => a + (b.harga * b.qty), 0);
         let diskon = 0;
         if(activeVoucher) {
@@ -418,36 +437,36 @@ $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_
         .then(d => {
             if(d.status === 'success') {
                 if(metode === 'midtrans' && d.snap_token) {
+                    // Payment Gateway
                     window.snap.pay(d.snap_token, {
                         onSuccess: () => finish(true, d.uuid),
                         onPending: () => finish(true, d.uuid),
                         onError: () => Swal.fire('Gagal', 'Pembayaran gagal', 'error')
                     });
                 } else {
-                    // Tunai
+                    // Tunai -> Langsung Finish
                     finish(false, d.uuid);
                 }
             } else {
                 Swal.fire('Gagal', d.message, 'error');
             }
-        })
-        .catch(e => Swal.fire('Error', 'Koneksi error', 'error'));
+        });
     }
 
     function finish(isMidtrans, uuid) {
         Swal.fire({
             icon:'success', 
             title:'Pesanan Berhasil!', 
-            text:'Mohon tunggu konfirmasi pelayan.', 
+            text:'Mohon tunggu sebentar...', 
             timer:2000, 
             showConfirmButton:false
         })
         .then(() => {
-            // [FIX] Redirect Logic
+            // [FIX] Redirect Cerdas (Status Page / History)
             <?php if($is_logged_in): ?>
                 window.location.href = '../pelanggan/riwayat.php';
             <?php else: ?>
-                // Tamu dibawa ke halaman Status Pesanan / Struk
+                // Jika Tamu, bawa ke halaman Status Pesanan (untuk pantau/download struk)
                 window.location.href = 'status.php?id=' + uuid; 
             <?php endif; ?>
         });
@@ -458,8 +477,7 @@ $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             cart = []; 
-            updateUI();
-            // Swal.fire({icon: 'success', title: 'Selamat Datang!', text: 'Silakan pesan menu.', timer: 1500, showConfirmButton: false});
+            updateUI(); // Bersihkan UI
         });
     </script>
     <?php unset($_SESSION['force_reset_cart']); endif; ?>
