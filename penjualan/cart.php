@@ -212,14 +212,20 @@ if (!isset($_SESSION['plg_meja_id'])) { header("Location: index.php"); exit; }
             }).then(r=>r.json()).then(d => {
                 if(d.status === 'success') {
                     localStorage.removeItem('cart_v2'); 
-                    if(metode === 'midtrans' && d.snap_token) {
-                        window.snap.pay(d.snap_token, {
-                            onSuccess: function(){ window.location.href = 'sukses.php?uuid='+d.uuid; },
-                            onPending: function(){ window.location.href = 'status.php?uuid='+d.uuid; },
-                            onClose: function(){ window.location.href = 'status.php?uuid='+d.uuid; }
-                        });
-                    } else {
-                        window.location.href = 'sukses.php?uuid='+d.uuid;
+                    if(d.status === 'success') {
+                        localStorage.removeItem('cart_v2'); 
+                        
+                        if(metode === 'midtrans' && d.snap_token) {
+                            // JIKA MIDTRANS -> BUKA POPUP
+                            window.snap.pay(d.snap_token, {
+                                onSuccess: function(){ window.location.href = 'sukses.php?uuid='+d.uuid; },
+                                onPending: function(){ window.location.href = 'status.php?uuid='+d.uuid; }, // Ke halaman status agar bisa bayar lagi
+                                onClose: function(){ window.location.href = 'status.php?uuid='+d.uuid; }    // Ke halaman status
+                            });
+                        } else {
+                            // JIKA TUNAI -> KE HALAMAN KONFIRMASI (TUNJUKKAN KASIR)
+                            window.location.href = 'konfirmasi_tunai.php?uuid='+d.uuid;
+                        }
                     }
                 } else {
                     Swal.fire('Gagal', d.message, 'error');
