@@ -14,7 +14,7 @@ register_shutdown_function(function() {
 ob_start();
 session_start();
 require_once '../auth/koneksi.php';
-// Sesuaikan path vendor jika perlu
+// Sesuaikan path vendor jika perlu (pastikan path ini benar di hosting Anda)
 require_once dirname(__FILE__) . '/../vendor/autoload.php'; 
 
 header('Content-Type: application/json');
@@ -105,10 +105,15 @@ if ($stmt->execute()) {
     $stmt_stok = $koneksi->prepare("UPDATE menu SET stok = stok - ? WHERE id = ?");
     
     foreach ($items as $item) {
-        $qty = $item['quantity']; 
-        $harga = $item['price']; 
+        // [FIX PERBAIKAN DISINI] 
+        // Menggunakan 'qty' sesuai key dari Javascript, bukan 'quantity'
+        $qty = isset($item['qty']) ? $item['qty'] : (isset($item['quantity']) ? $item['quantity'] : 1); 
+        
+        $harga = $item['harga']; // Pastikan JS kirim 'harga', bukan 'price' (sesuaikan dgn JS Anda)
+        // Jika JS kirim 'price', gunakan: $harga = $item['price'];
+        
         $sub = $harga * $qty;
-        $catatan = isset($item['note']) ? $item['note'] : ''; // Tambahan jika ada catatan
+        $catatan = isset($item['note']) ? $item['note'] : ''; 
         
         $stmt_detail->bind_param("iiidss", $trx_id, $item['id'], $qty, $harga, $sub, $catatan);
         $stmt_detail->execute();
@@ -130,7 +135,7 @@ if ($stmt->execute()) {
         'status' => 'success', 
         'uuid' => $uuid, 
         'snap_token' => $snap_token,
-        'is_logged_in' => $is_logged_in // Flag untuk redirect frontend (History vs Struk)
+        'is_logged_in' => $is_logged_in 
     ]);
 } else {
     ob_clean(); echo json_encode(['status' => 'error', 'message' => $koneksi->error]);
