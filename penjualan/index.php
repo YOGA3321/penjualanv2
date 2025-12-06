@@ -411,7 +411,22 @@ $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_
                     window.snap.pay(d.snap_token, {
                         onSuccess: () => finish(true, d.uuid),
                         onPending: () => finish(true, d.uuid),
-                        onError: () => Swal.fire('Gagal', 'Pembayaran gagal', 'error')
+                        onError: () => Swal.fire('Gagal', 'Pembayaran gagal', 'error'),
+                        // [TAMBAHAN PENTING] Redirect saat ditutup agar user tidak bingung
+                        onClose: () => {
+                            Swal.fire({
+                                title: 'Belum Selesai',
+                                text: 'Pembayaran belum diselesaikan. Cek riwayat untuk bayar nanti.',
+                                icon: 'warning',
+                                confirmButtonText: 'Cek Status'
+                            }).then(() => {
+                                <?php if($is_logged_in): ?>
+                                    window.location.href = '../pelanggan/riwayat.php';
+                                <?php else: ?>
+                                    window.location.href = 'status.php?uuid=' + d.uuid;
+                                <?php endif; ?>
+                            });
+                        }
                     });
                 } else {
                     // [FIX] Tunai -> ke Konfirmasi Tunai
