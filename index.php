@@ -156,6 +156,7 @@ $level_user = $_SESSION['level'] ?? '';
             position: relative;
             display: flex;
             align-items: center;
+            padding-top: 100px; /* Default top padding */
         }
         .bg-grid-pattern {
             position: absolute; inset: 0;
@@ -163,8 +164,42 @@ $level_user = $_SESSION['level'] ?? '';
             linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
             background-size: 50px 50px;
         }
-        
-        /* Animations */
+
+        /* Badge */
+        .badge-container {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 6px 16px; 
+            background: rgba(99,102,241,0.1); 
+            border: 1px solid rgba(99,102,241,0.3); 
+            border-radius: 50px; 
+            margin-bottom: 2rem;
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            #home {
+                align-items: flex-start;
+                padding-top: 140px;
+                padding-bottom: 60px;
+                height: auto;
+            }
+            .display-title { font-size: 2.5rem; text-align: center; }
+            .nav-links { display: none; }
+            .row { flex-direction: column; }
+            
+            .hero-img-wrapper { max-width: 280px; margin: 30px auto; }
+            .vl { display: none; }
+            .stats-container { 
+                justify-content: center; 
+                display: flex; 
+                width: 100%; 
+                gap: 20px; 
+                flex-wrap: wrap; 
+            }
+            .text-light { text-align: center; }
+            .row .col-half:first-child .flex.gap-4 { justify-content: center; } /* Target buttons */
+            .badge-container { display: flex; width: fit-content; margin: 0 auto 2rem auto; }
+        }
         @keyframes float {
             0%, 100% { transform: translateY(0); }
             50% { transform: translateY(-20px); }
@@ -309,7 +344,7 @@ $level_user = $_SESSION['level'] ?? '';
             <div class="row items-center">
                 <!-- Text Content -->
                 <div class="col-half" data-aos="fade-right">
-                    <div style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 16px; background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.3); border-radius: 50px; margin-bottom: 2rem;">
+                    <div class="badge-container">
                         <span style="width: 8px; height: 8px; background: #818cf8; border-radius: 50%;" class="animate-pulse"></span>
                         <span style="color: #a5b4fc; font-size: 0.75rem; font-weight: 700; letter-spacing: 1px;">THE FUTURE OF DINING</span>
                     </div>
