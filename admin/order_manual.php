@@ -66,11 +66,17 @@ include '../layouts/admin/header.php';
                         </div>
                     <?php else: ?>
                         <?php 
-                            // [FIX FILTER MEJA AGESIF]
+                            // [FIX FILTER MEJA AGRESIF & LOGIKA RESERVASI]
                             $target = ($level == 'admin') ? $view_cabang : $_SESSION['cabang_id'];
                             $now = date('Y-m-d H:i:s');
                             
-                            // Cari Meja Kosong DAN Tidak ada Reservasi Aktif (H-15 s/d Durasi Selesai)
+                            // LOGIKA UTAMA:
+                            // Meja harus status 'kosong'
+                            // DAN Meja TIDAK BOLEH ada di daftar reservasi yang:
+                            // 1. Statusnya 'pending' atau 'checkin'
+                            // 2. Waktu sekarang ($now) berada di antara (Waktu Reservasi - 30 Menit) sampai (Waktu Reservasi + Durasi)
+                            // Artinya: Jika reservasi jam 12:00, maka jam 11:30 meja sudah tidak bisa dipilih manual.
+                            
                             $q_meja = $koneksi->query("
                                 SELECT * FROM meja m 
                                 WHERE m.cabang_id = '$target' 
@@ -78,7 +84,7 @@ include '../layouts/admin/header.php';
                                 AND m.id NOT IN (
                                     SELECT meja_id FROM reservasi 
                                     WHERE status IN ('pending', 'checkin') 
-                                    AND '$now' BETWEEN DATE_SUB(waktu_reservasi, INTERVAL 15 MINUTE) 
+                                    AND '$now' BETWEEN DATE_SUB(waktu_reservasi, INTERVAL 30 MINUTE) 
                                                    AND DATE_ADD(waktu_reservasi, INTERVAL durasi_menit MINUTE)
                                 )
                                 ORDER BY CAST(m.nomor_meja AS UNSIGNED) ASC
@@ -93,9 +99,10 @@ include '../layouts/admin/header.php';
                                         <option value="<?= $m['id'] ?>">Meja <?= $m['nomor_meja'] ?></option>
                                     <?php endwhile; ?>
                                 <?php else: ?>
-                                    <option value="" disabled>Semua meja penuh / direservasi!</option>
+                                    <option value="" disabled>Semua meja penuh / akan segera direservasi!</option>
                                 <?php endif; ?>
                             </select>
+                            <div class="form-text text-danger">* Meja yang akan dipakai reservasi dalam 30 menit ke depan tidak ditampilkan.</div>
                         </div>
                     <?php endif; ?>
 
@@ -117,17 +124,18 @@ function loadMeja(cabangId) {
     mejaSelect.innerHTML = '<option>Memuat...</option>';
     mejaSelect.disabled = true;
 
-    // [FIX JS FILTER]
+    // Load data meja via PHP di awal, lalu filter via JS untuk performa tanpa AJAX
     <?php 
         $all_meja = [];
         $now = date('Y-m-d H:i:s');
+        // Terapkan logika buffer 30 menit yang sama untuk Global View
         $q_all = $koneksi->query("
             SELECT id, cabang_id, nomor_meja FROM meja m
             WHERE status = 'kosong'
             AND m.id NOT IN (
                 SELECT meja_id FROM reservasi 
                 WHERE status IN ('pending', 'checkin') 
-                AND '$now' BETWEEN DATE_SUB(waktu_reservasi, INTERVAL 15 MINUTE) AND DATE_ADD(waktu_reservasi, INTERVAL durasi_menit MINUTE)
+                AND '$now' BETWEEN DATE_SUB(waktu_reservasi, INTERVAL 30 MINUTE) AND DATE_ADD(waktu_reservasi, INTERVAL durasi_menit MINUTE)
             )
             ORDER BY CAST(nomor_meja AS UNSIGNED) ASC
         ");

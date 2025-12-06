@@ -6,6 +6,16 @@ require_once 'auth/koneksi.php';
 $is_logged_in = isset($_SESSION['user_id']);
 $nama_user = $_SESSION['nama'] ?? 'Tamu';
 $level_user = $_SESSION['level'] ?? '';
+
+// --- LOGIKA DATA DARI DB ---
+// 1. QUERY MENU FAVORIT (Acak 3 menu aktif)
+$q_best = $koneksi->query("SELECT * FROM menu WHERE is_active = 1 ORDER BY RAND() LIMIT 3");
+
+// 2. QUERY MENU PROMO (Harga < 25rb atau flag promo)
+$q_promo = $koneksi->query("SELECT * FROM menu WHERE is_active = 1 AND (harga < 25000 OR is_promo = 1) LIMIT 3");
+
+// 3. QUERY CABANG
+$q_cabang = $koneksi->query("SELECT * FROM cabang ORDER BY is_pusat DESC, id ASC");
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -156,7 +166,7 @@ $level_user = $_SESSION['level'] ?? '';
             position: relative;
             display: flex;
             align-items: center;
-            padding-top: 100px; /* Default top padding */
+            padding-top: 100px;
         }
         .bg-grid-pattern {
             position: absolute; inset: 0;
@@ -175,31 +185,7 @@ $level_user = $_SESSION['level'] ?? '';
             margin-bottom: 2rem;
         }
 
-        /* Mobile Responsive */
-        @media (max-width: 768px) {
-            #home {
-                align-items: flex-start;
-                padding-top: 140px;
-                padding-bottom: 60px;
-                height: auto;
-            }
-            .display-title { font-size: 2.5rem; text-align: center; }
-            .nav-links { display: none; }
-            .row { flex-direction: column; }
-            
-            .hero-img-wrapper { max-width: 280px; margin: 30px auto; }
-            .vl { display: none; }
-            .stats-container { 
-                justify-content: center; 
-                display: flex; 
-                width: 100%; 
-                gap: 20px; 
-                flex-wrap: wrap; 
-            }
-            .text-light { text-align: center; }
-            .row .col-half:first-child .flex.gap-4 { justify-content: center; } /* Target buttons */
-            .badge-container { display: flex; width: fit-content; margin: 0 auto 2rem auto; }
-        }
+        /* Animations */
         @keyframes float {
             0%, 100% { transform: translateY(0); }
             50% { transform: translateY(-20px); }
@@ -248,7 +234,6 @@ $level_user = $_SESSION['level'] ?? '';
             transition: transform 0.5s;
         }
         
-        /* Wave Dividers */
         .wave-bottom {
             position: absolute; bottom: 0; left: 0; width: 100%;
             line-height: 0; transform: rotate(180deg);
@@ -259,7 +244,6 @@ $level_user = $_SESSION['level'] ?? '';
         }
         .wave-svg { width: calc(100% + 1.3px); height: 80px; display: block; }
         
-        /* Stats */
         .stat-box { text-align: left; }
         .stat-num { font-size: 1.8rem; font-weight: 700; color: white; }
         .stat-label { font-size: 0.75rem; letter-spacing: 1px; color: var(--text-light); text-transform: uppercase; }
@@ -270,6 +254,7 @@ $level_user = $_SESSION['level'] ?? '';
             background: white; border-radius: 20px; overflow: hidden;
             box-shadow: 0 10px 30px rgba(0,0,0,0.05);
             transition: 0.3s;
+            height: 100%;
         }
         .menu-card:hover { transform: translateY(-10px); box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
         .card-img { height: 220px; position: relative; overflow: hidden; }
@@ -282,8 +267,24 @@ $level_user = $_SESSION['level'] ?? '';
             color: var(--primary); font-weight: 700; font-size: 0.9rem;
         }
         .card-body { padding: 25px; }
+        
+        /* Custom Scroll for Branch List */
+        .branch-list {
+            max-height: 400px;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+        .branch-list::-webkit-scrollbar { width: 6px; }
+        .branch-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .branch-item {
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 15px;
+            margin-bottom: 15px;
+            transition: 0.3s;
+        }
+        .branch-item:hover { background: #f1f5f9; transform: translateX(5px); }
 
-        /* Footer */
         footer {
             background: var(--dark-bg);
             color: var(--text-light);
@@ -291,21 +292,19 @@ $level_user = $_SESSION['level'] ?? '';
             border-top: 1px solid var(--dark-bg-soft);
             position: relative;
         }
-
-        /* Mobile Responsive */
+        
         @media (max-width: 768px) {
-            .display-title { font-size: 2.5rem; }
-            .nav-links { display: none; } /* Simplified for now */
+            .display-title { font-size: 2.5rem; text-align: center; }
+            .nav-links { display: none; }
             .row { flex-direction: column; }
-            .hero-img-wrapper { max-width: 300px; margin-top: 40px; }
+            .hero-img-wrapper { max-width: 280px; margin: 30px auto; }
             .vl { display: none; }
-            .stats-container { justify-content: space-around; display: flex; width: 100%; }
+            .stats-container { justify-content: center; display: flex; width: 100%; gap: 20px; flex-wrap: wrap; }
         }
     </style>
 </head>
 <body>
 
-    <!-- Navbar -->
     <nav class="navbar" id="navbar">
         <div class="container flex items-center justify-between">
             <a href="#" class="flex items-center gap-2">
@@ -316,13 +315,14 @@ $level_user = $_SESSION['level'] ?? '';
             <ul class="nav-links">
                 <li><a href="#home" class="nav-link active">Beranda</a></li>
                 <li><a href="#about" class="nav-link">Tentang</a></li>
+                <?php if($q_promo->num_rows > 0): ?><li><a href="#promo" class="nav-link">Promo</a></li><?php endif; ?>
                 <li><a href="#menu" class="nav-link">Menu</a></li>
                 <li><a href="#contact" class="nav-link">Lokasi</a></li>
             </ul>
 
             <div class="hidden md:block">
             <?php if ($is_logged_in): ?>
-                <a href="<?= ($level_user=='pelanggan') ? 'penjualan/index.php' : 'admin/index.php' ?>" class="btn btn-primary">
+                <a href="<?= ($level_user=='pelanggan') ? 'pelanggan/index.php' : 'admin/index.php' ?>" class="btn btn-primary">
                     <?= ($level_user=='pelanggan') ? '<i class="fas fa-utensils"></i> Pesan' : '<i class="fas fa-tachometer-alt"></i> Dashboard' ?>
                 </a>
             <?php else: ?>
@@ -332,9 +332,7 @@ $level_user = $_SESSION['level'] ?? '';
         </div>
     </nav>
 
-    <!-- Hero Section -->
     <section id="home">
-        <!-- Background Elements -->
         <div class="bg-grid-pattern"></div>
         <div class="blob blob-1 animate-blob"></div>
         <div class="blob blob-2 animate-blob"></div>
@@ -342,7 +340,6 @@ $level_user = $_SESSION['level'] ?? '';
 
         <div class="container relative" style="z-index: 2;">
             <div class="row items-center">
-                <!-- Text Content -->
                 <div class="col-half" data-aos="fade-right">
                     <div class="badge-container">
                         <span style="width: 8px; height: 8px; background: #818cf8; border-radius: 50%;" class="animate-pulse"></span>
@@ -358,10 +355,9 @@ $level_user = $_SESSION['level'] ?? '';
 
                     <div class="flex gap-4 mb-6">
                         <a href="#menu" class="btn btn-primary">Lihat Menu</a>
-                        <a href="#contact" class="btn btn-outline">Reservasi</a>
+                        <a href="pelanggan/index.php" class="btn btn-outline">Reservasi</a>
                     </div>
 
-                    <!-- Stats -->
                     <div class="flex items-center stats-container" style="margin-top: 3rem;">
                         <div class="stat-box">
                             <h4 class="stat-num">5k+</h4>
@@ -380,7 +376,6 @@ $level_user = $_SESSION['level'] ?? '';
                     </div>
                 </div>
 
-                <!-- Floating Image -->
                 <div class="col-half" data-aos="fade-left">
                     <div class="relative animate-float">
                         <div class="image-glow"></div>
@@ -388,7 +383,6 @@ $level_user = $_SESSION['level'] ?? '';
                             <img src="assets/images/menu3.jpg" alt="Hero Burger" class="hero-img">
                         </div>
                         
-                        <!-- Floating Badge -->
                         <div style="position: absolute; bottom: -20px; right: 20px; background: rgba(255,255,255,0.95); padding: 15px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); animation: float 4s infinite reverse;">
                             <div class="flex items-center gap-2">
                                 <div style="background: #ffedd5; padding: 8px; border-radius: 50%; color: #f97316;">
@@ -404,8 +398,6 @@ $level_user = $_SESSION['level'] ?? '';
                 </div>
             </div>
         </div>
-
-        <!-- Wave Bottom -->
         <div class="wave-bottom">
             <svg class="wave-svg" viewBox="0 0 1200 120" preserveAspectRatio="none">
                 <path d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z" fill="#ffffff"></path>
@@ -413,7 +405,6 @@ $level_user = $_SESSION['level'] ?? '';
         </div>
     </section>
 
-    <!-- About Section -->
     <section id="about" class="py-24">
         <div class="container">
             <div class="row items-center">
@@ -439,7 +430,32 @@ $level_user = $_SESSION['level'] ?? '';
         </div>
     </section>
 
-    <!-- Menu Section -->
+    <?php if($q_promo->num_rows > 0): ?>
+    <section id="promo" style="background: #fff1f2; padding: 100px 0;">
+        <div class="container">
+            <div class="text-center mb-6" data-aos="fade-up">
+                <h5 style="color: #e11d48;" class="font-bold uppercase">HOT DEALS 🔥</h5>
+                <h2 style="font-size: 2.5rem; font-weight: 800;">Promo Spesial Hari Ini</h2>
+            </div>
+            <div class="grid-3">
+                <?php while($p = $q_promo->fetch_assoc()): ?>
+                <div class="menu-card" data-aos="fade-up">
+                    <div class="card-img">
+                        <img src="<?= $p['gambar'] ? $p['gambar'] : 'assets/images/menu1.jpg' ?>" alt="<?= $p['nama_menu'] ?>">
+                        <div class="price-badge" style="background: #e11d48; color: white;">Rp <?= number_format($p['harga'],0,',','.') ?></div>
+                    </div>
+                    <div class="card-body">
+                        <h4 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 10px;"><?= $p['nama_menu'] ?></h4>
+                        <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 20px;"><?= substr($p['deskripsi'], 0, 50) ?>...</p>
+                        <a href="penjualan/index.php" class="btn" style="background: #e11d48; color: white; width:100%; text-align:center;">Ambil Promo</a>
+                    </div>
+                </div>
+                <?php endwhile; ?>
+            </div>
+        </div>
+    </section>
+    <?php endif; ?>
+
     <section id="menu" style="background: #f1f5f9; padding: 100px 0;">
         <div class="container">
             <div class="text-center mb-6" data-aos="fade-up">
@@ -448,42 +464,22 @@ $level_user = $_SESSION['level'] ?? '';
             </div>
             
             <div class="grid-3">
-                <!-- Item 1 -->
-                <div class="menu-card" data-aos="fade-up" data-aos-delay="100">
+                <?php while($m = $q_best->fetch_assoc()): ?>
+                <div class="menu-card" data-aos="fade-up">
                     <div class="card-img">
-                        <img src="assets/images/menu1.jpg" alt="Steak">
-                        <div class="price-badge">Rp 120k</div>
+                        <img src="<?= $m['gambar'] ? $m['gambar'] : 'assets/images/menu2.jpg' ?>" alt="<?= $m['nama_menu'] ?>">
+                        <div class="price-badge">Rp <?= number_format($m['harga'],0,',','.') ?></div>
                     </div>
                     <div class="card-body">
-                        <h4 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 10px;">Steak Premium</h4>
-                        <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 20px;">Wagyu grade A5 dengan saus truffle mushroom.</p>
+                        <div class="flex justify-between items-center mb-2">
+                            <h4 style="font-size: 1.25rem; font-weight: 700;"><?= $m['nama_menu'] ?></h4>
+                            <div style="color: #f59e0b; font-size: 0.8rem;"><i class="fas fa-star"></i> 5.0</div>
+                        </div>
+                        <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 20px;"><?= substr($m['deskripsi'], 0, 60) ?>...</p>
                         <a href="penjualan/index.php" style="display: block; text-align: center; padding: 10px; border: 2px solid var(--primary); color: var(--primary); border-radius: 10px; font-weight: 600;">Pesan Sekarang</a>
                     </div>
                 </div>
-                <!-- Item 2 -->
-                <div class="menu-card" data-aos="fade-up" data-aos-delay="200">
-                    <div class="card-img">
-                        <img src="assets/images/menu2.jpg" alt="Pasta">
-                        <div class="price-badge">Rp 85k</div>
-                    </div>
-                    <div class="card-body">
-                        <h4 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 10px;">Truffle Pasta</h4>
-                        <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 20px;">Creamy sauce dengan parmesan dan jamur.</p>
-                        <a href="penjualan/index.php" style="display: block; text-align: center; padding: 10px; border: 2px solid var(--primary); color: var(--primary); border-radius: 10px; font-weight: 600;">Pesan Sekarang</a>
-                    </div>
-                </div>
-                <!-- Item 3 -->
-                <div class="menu-card" data-aos="fade-up" data-aos-delay="300">
-                    <div class="card-img">
-                        <img src="assets/images/menu3.jpg" alt="Burger">
-                        <div class="price-badge">Rp 95k</div>
-                    </div>
-                    <div class="card-body">
-                        <h4 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 10px;">Royal Burger</h4>
-                        <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 20px;">Double patty dengan smoked beef dan cheese.</p>
-                        <a href="penjualan/index.php" style="display: block; text-align: center; padding: 10px; border: 2px solid var(--primary); color: var(--primary); border-radius: 10px; font-weight: 600;">Pesan Sekarang</a>
-                    </div>
-                </div>
+                <?php endwhile; ?>
             </div>
             
             <div class="text-center" style="margin-top: 50px;">
@@ -492,7 +488,6 @@ $level_user = $_SESSION['level'] ?? '';
         </div>
     </section>
 
-    <!-- Content / Location -->
     <section id="contact" style="padding: 100px 0; background: white;">
         <div class="container">
             <div class="row items-center">
@@ -500,21 +495,37 @@ $level_user = $_SESSION['level'] ?? '';
                     <h5 class="text-primary font-bold uppercase mb-2">Lokasi Kami</h5>
                     <h2 style="font-size: 2.5rem; font-weight: 800; margin-bottom: 20px;">Kunjungi Outlet Kami</h2>
                     <p style="color: #64748b; margin-bottom: 30px;">
-                        Nikmati suasana futuristik di tengah kota. Tempat yang sempurna untuk meeting, kencan, atau bersantai.
+                        Temukan kenyamanan di outlet terdekat Anda.
                     </p>
                     
-                    <div class="flex items-center gap-4 mb-4">
-                        <div style="width: 50px; height: 50px; background: #f1f5f9; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--primary);">
-                            <i class="fas fa-map-marker-alt"></i>
+                    <div class="branch-list">
+                        <?php while($c = $q_cabang->fetch_assoc()): ?>
+                        <div class="branch-item flex items-center gap-4">
+                            <div style="width: 50px; height: 50px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--primary); box-shadow: 0 5px 15px rgba(0,0,0,0.05);">
+                                <i class="fas fa-store"></i>
+                            </div>
+                            <div>
+                                <h5 style="font-weight: 700; display:flex; align-items:center; gap:10px;">
+                                    <?= $c['nama_cabang'] ?>
+                                    <?php if($c['is_pusat']): ?>
+                                        <span style="font-size:0.6rem; background:var(--primary); color:white; padding:2px 8px; border-radius:20px;">PUSAT</span>
+                                    <?php endif; ?>
+                                </h5>
+                                <p style="font-size: 0.85rem; color: #64748b; margin-bottom:2px;"><?= $c['alamat'] ?></p>
+                                <div style="font-size: 0.8rem; color: #94a3b8;">
+                                    <i class="far fa-clock"></i> <?= date('H:i', strtotime($c['jam_buka'])) ?> - <?= date('H:i', strtotime($c['jam_tutup'])) ?>
+                                    <span style="margin-left:10px; color: <?= $c['is_open']?'#10b981':'#ef4444' ?>; font-weight:bold;">
+                                        <?= $c['is_open'] ? 'BUKA' : 'TUTUP' ?>
+                                    </span>
+                                </div>
+                            </div>
                         </div>
-                        <div>
-                            <h5 style="font-weight: 700;">Alamat</h5>
-                            <p style="font-size: 0.9rem; color: #64748b;">Jl. Raya Kuliner No. 88, Jakarta</p>
-                        </div>
+                        <?php endwhile; ?>
                     </div>
+
                 </div>
                 <div class="col-half" data-aos="fade-left">
-                    <div style="border-radius: 20px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.1); height: 400px;">
+                    <div style="border-radius: 20px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.1); height: 450px;">
                         <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d31662.151250121915!2d112.72093057720754!3d-7.267118852885301!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2dd7fbc332a3fb01%3A0xc2c2e7e4b44f1d6!2sPagi%20Sore%20Surabaya%20%40Embong%20Sawo!5e0!3m2!1sid!2sid!4v1765002598839!5m2!1sid!2sid" width="100%" height="100%" style="border:0;" allowfullscreen="" loading="lazy"></iframe>
                     </div>
                 </div>
@@ -522,7 +533,6 @@ $level_user = $_SESSION['level'] ?? '';
         </div>
     </section>
 
-    <!-- Footer -->
     <footer>
         <div class="wave-top">
             <svg class="wave-svg" viewBox="0 0 1200 120" preserveAspectRatio="none">
@@ -550,7 +560,7 @@ $level_user = $_SESSION['level'] ?? '';
                 </div>
             </div>
             <div style="border-top: 1px solid rgba(255,255,255,0.1); margin-top: 40px; padding-top: 20px; text-align: center; font-size: 0.85rem; opacity: 0.5;">
-                &copy; <?= date('Y') ?> Waroeng Modern Bites. Created by Lopyta.
+                © <?= date('Y') ?> Waroeng Modern Bites. Created by Lopyta.
             </div>
         </div>
     </footer>

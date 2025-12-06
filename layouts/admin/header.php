@@ -80,6 +80,9 @@ if(isset($_SESSION['level'])) {
                     <li class="<?= $active_menu == 'kategori' ? 'active' : '' ?>">
                         <a href="kategori" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-tags fa-fw me-2"></i> Kategori Menu</a>
                     </li>
+                    <li class="<?= $active_menu == 'voucher' ? 'active' : '' ?>">
+                        <a href="voucher" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-ticket-alt fa-fw me-2"></i> Manajemen Voucher</a>
+                    </li>
                     <li class="<?= $active_menu == 'users' ? 'active' : '' ?>">
                         <a href="users" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-users-cog fa-fw me-2"></i> Manajemen User</a>
                     </li>
