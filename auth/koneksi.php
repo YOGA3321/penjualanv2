@@ -23,8 +23,8 @@ if ($is_localhost) {
     $db_user = 'u116133173_penjualan2'; 
     $db_pass = '@Yogabd46';             
     $db_name = 'u116133173_penjualan2'; 
-    $base_path = ''; // Jika di subdomain, biasanya kosong
-    $protocol = 'https://'; // Paksa HTTPS di hosting
+    $base_path = '';
+    $protocol = 'https://';
 }
 
 // --- 2. KONEKSI DATABASE ---
