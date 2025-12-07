@@ -116,8 +116,8 @@ include '../layouts/admin/header.php';
                                         <i class="fas fa-cash-register"></i> Terima Tunai
                                     </button>
                                 <?php elseif($pay_status == 'pending' && $row['metode_pembayaran'] == 'midtrans'): ?>
-                                    <button class="btn btn-sm btn-primary flex-grow-1" onclick="cekStatusMidtrans(<?= $row['id'] ?>, '<?= $row['snap_token'] ?>')">
-                                        <i class="fas fa-qrcode"></i> Cek / Bayar
+                                    <button class="btn btn-sm btn-primary flex-grow-1" onclick="cekStatusMidtrans(<?= $row['id'] ?>)">
+                                        <i class="fas fa-sync-alt"></i> Sinkronisasi Midtrans
                                     </button>
                                 <?php elseif($status == 'siap_saji'): ?>
                                     <button class="btn btn-sm btn-success flex-grow-1 fw-bold" onclick="selesaiPesanan(<?= $row['id'] ?>)"><i class="fas fa-check"></i> Selesai</button>
@@ -279,8 +279,14 @@ include '../layouts/admin/header.php';
     }
 
     // [FIX] FUNGSI CEK STATUS MIDTRANS CANGGIH
-    function cekStatusMidtrans(id, token) {
-        Swal.fire({title: 'Menghubungkan ke Midtrans...', didOpen: () => Swal.showLoading()});
+    // [FIX] FITUR SINKRONISASI MANUAL
+    function cekStatusMidtrans(id) {
+        Swal.fire({
+            title: 'Sinkronisasi Data...', 
+            text: 'Mengecek status pembayaran ke Midtrans',
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading()
+        });
         
         const fd = new FormData();
         fd.append('action', 'sync_midtrans');
@@ -290,61 +296,31 @@ include '../layouts/admin/header.php';
         .then(r => r.json())
         .then(d => {
             if(d.status === 'success') {
-                Swal.fire('Lunas!', d.message, 'success').then(() => location.reload());
-            } else if(d.status === 'warning') {
-                Swal.fire('Batal', d.message, 'warning').then(() => location.reload());
-            } else {
-                // Jika masih pending, tawarkan bayar di kasir ATAU buka popup Midtrans
                 Swal.fire({
-                    title: 'Status: Pending',
-                    text: 'Pelanggan belum menyelesaikan pembayaran.',
-                    icon: 'info',
-                    showDenyButton: true,
-                    showCancelButton: true,
-                    confirmButtonText: '<i class="fas fa-qrcode"></i> Buka Popup Midtrans',
-                    denyButtonText: '<i class="fas fa-cash-register"></i> Bayar Tunai',
-                    cancelButtonText: 'Tutup',
-                    confirmButtonColor: '#0d6efd',
-                    denyButtonColor: '#198754'
-                }).then((res) => {
-                    if(res.isConfirmed) {
-                        // Buka SNAP POPUP
-                        if(token) {
-                            window.snap.pay(token, {
-                                onSuccess: function(result){
-                                    // Update Manual via API setelah sukses di popup
-                                    Swal.fire({title:'Memproses...', didOpen:()=>Swal.showLoading()});
-                                    // Panggil ulang sync untuk merubah status
-                                    fetch('api/transaksi_action.php', { method: 'POST', body: fd })
-                                    .then(r=>r.json()).then(resSync => {
-                                        if(resSync.status === 'success') location.reload();
-                                        else Swal.fire('Info', 'Pembayaran berhasil, silakan refresh.', 'success').then(()=>location.reload());
-                                    });
-                                },
-                                onPending: function(result){
-                                    Swal.fire('Pending', 'Menunggu pembayaran customer', 'info');
-                                },
-                                onError: function(result){
-                                    Swal.fire('Error', 'Pembayaran gagal', 'error');
-                                },
-                                onClose: function(){
-                                    Swal.fire('Tutup', 'Popup ditutup', 'warning');
-                                }
-                            });
-                        } else {
-                            Swal.fire('Error', 'Token Snap tidak ditemukan (Expired?)', 'error');
-                        }
-                    } else if (res.isDenied) {
-                        // Bayar Tunai
-                        fetch('api/get_detail_transaksi.php?id=' + id).then(r=>r.json()).then(dt => {
-                            konfirmasiBayar(id, parseInt(dt.header.total_harga));
-                        });
-                    }
+                    icon: 'success', 
+                    title: 'Sinkronisasi Berhasil!', 
+                    text: d.message,
+                    timer: 2000,
+                    showConfirmButton: false
+                }).then(() => location.reload());
+            } else if(d.status === 'warning') {
+                Swal.fire({
+                    icon: 'warning', 
+                    title: 'Status: EXPIRED/CANCEL', 
+                    text: d.message
+                }).then(() => location.reload());
+            } else {
+                Swal.fire({
+                    icon: 'info', 
+                    title: 'Belum Dibayar', 
+                    text: d.message,
+                    confirmButtonText: 'Tutup'
                 });
             }
         })
-        .catch(e => Swal.fire('Error', 'Gagal koneksi server', 'error'));
+        .catch(e => Swal.fire('Error', 'Gagal koneksi ke server', 'error'));
     }
+
 
     function batalkanPesanan(id) {
         Swal.fire({
