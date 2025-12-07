@@ -26,53 +26,112 @@ $input = json_decode(file_get_contents('php://input'), true);
 $meja_id = $_SESSION['plg_meja_id'];
 $nama = $koneksi->real_escape_string($input['nama_pelanggan']);
 $metode = $input['metode']; 
-$items = $input['items'];
-
-// --- VALIDASI DATA ---
-// Pastikan total harga integer
-$total_bayar = (int)$input['total_harga'];
-$diskon = (int)($input['diskon'] ?? 0);
+$items_client = $input['items'];
 $kode_voucher = $input['kode_voucher'] ?? NULL;
 
-// Validasi total tidak boleh 0 atau minus (Kecuali full diskon = 0 masih boleh, tapi minus jangan)
-if ($total_bayar < 0) { 
-    ob_clean(); echo json_encode(['status'=>'error','message'=>'Total harga tidak valid']); exit; 
+// Validasi Keranjang Kosong
+if (empty($items_client)) { ob_clean(); echo json_encode(['status'=>'error','message'=>'Keranjang kosong']); exit; }
+
+// =======================================================================
+// 1. HITUNG ULANG HARGA & PROMO (SERVER SIDE VALIDATION)
+// =======================================================================
+$total_real = 0;
+$fixed_items = []; 
+
+foreach ($items_client as $item) {
+    $id_menu = (int)$item['id'];
+    $qty = (int)$item['qty'];
+    
+    // Ambil Harga Terbaru dari DB
+    $q_cek = $koneksi->query("SELECT harga, harga_promo, is_promo, stok, nama_menu FROM menu WHERE id = '$id_menu' AND is_active = 1");
+    $db_menu = $q_cek->fetch_assoc();
+    
+    if(!$db_menu) {
+        ob_clean(); echo json_encode(['status'=>'error', 'message'=>"Menu '{$item['nama']}' tidak tersedia/dihapus."]); exit;
+    }
+    
+    // Cek Stok
+    if ($qty > $db_menu['stok']) {
+        ob_clean(); echo json_encode(['status'=>'error', 'message'=>"Stok '{$db_menu['nama_menu']}' tersisa {$db_menu['stok']}."]); exit;
+    }
+
+    // Tentukan Harga Fix (Promo atau Normal)
+    $harga_fix = $db_menu['harga'];
+    if ($db_menu['is_promo'] == 1 && $db_menu['harga_promo'] > 0) {
+        $harga_fix = $db_menu['harga_promo'];
+    }
+    
+    // Simpan ke array baru untuk Insert nanti
+    $subtotal = $harga_fix * $qty;
+    $total_real += $subtotal;
+    
+    $fixed_items[] = [
+        'id' => $id_menu,
+        'qty' => $qty,
+        'harga_satuan' => $harga_fix,
+        'subtotal' => $subtotal
+    ];
 }
 
-// --- HITUNG POIN (User Login) ---
+// =======================================================================
+// 2. HITUNG ULANG DISKON VOUCHER
+// =======================================================================
+$diskon_real = 0;
+$today = date('Y-m-d');
+
+if ($kode_voucher) {
+    $q_v = $koneksi->query("SELECT * FROM vouchers WHERE kode = '$kode_voucher' AND stok > 0 AND berlaku_sampai >= '$today'");
+    $v = $q_v->fetch_assoc();
+    
+    if ($v) {
+        if ($total_real >= $v['min_belanja']) {
+            if ($v['tipe'] == 'fixed') {
+                $diskon_real = $v['nilai'];
+            } else {
+                $diskon_real = ($total_real * $v['nilai']) / 100;
+            }
+        }
+    }
+}
+
+// Finalisasi Total Bayar
+if ($diskon_real > $total_real) $diskon_real = $total_real;
+$total_akhir_server = $total_real - $diskon_real;
+
+// Validasi Midtrans (Min Rp 1)
+if ($total_akhir_server <= 0 && $metode == 'midtrans') {
+    ob_clean(); echo json_encode(['status'=>'error','message'=>'Total Rp 0 tidak bisa pakai QRIS. Gunakan Tunai.']); exit;
+}
+
+// =======================================================================
+// 3. PROSES INSERT (Database)
+// =======================================================================
+
+// Hitung Poin
 $poin_dapat = 0;
 $user_id_db = NULL;
 if (isset($_SESSION['user_id']) && $_SESSION['level'] == 'pelanggan') {
     $user_id_db = $_SESSION['user_id'];
-    // Rumus: Setiap 10.000 dapat 1 Poin (Dihitung dari total sebelum atau sesudah diskon? Biasanya sesudah)
-    $poin_dapat = floor($total_bayar / 10000);
+    $poin_dapat = floor($total_akhir_server / 10000);
 }
 
-// GENERATE ID
+// Generate UUID & Params
 $uuid = sprintf('%04x%04x-%04x-%04x-%04x-%04x%04x%04x', mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0x0fff) | 0x4000, mt_rand(0, 0x3fff) | 0x8000, mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff));
-$status_bayar = 'pending';
 $status_pesanan = ($metode == 'tunai') ? 'menunggu_konfirmasi' : 'menunggu_bayar'; 
 $snap_token = null;
 $midtrans_order_id = null;
 
-// --- MIDTRANS ---
 if ($metode == 'midtrans') {
-    \Midtrans\Config::$serverKey = 'SB-Mid-server-p0J5Kw0tX_JHY_HoYJOQzYXQ'; 
+    \Midtrans\Config::$serverKey = 'SB-Mid-server-p0J5Kw0tX_JHY_HoYJOQzYXQ'; // Pastikan Key Benar
     \Midtrans\Config::$isProduction = false;
     \Midtrans\Config::$isSanitized = true;
     \Midtrans\Config::$is3ds = true;
-
-    // Gunakan Total Bayar yang sudah didiskon!
-    // Midtrans menolak jika gross_amount <= 0. Jadi jika gratis, harus tunai.
-    if ($total_bayar <= 0) {
-        ob_clean(); echo json_encode(['status'=>'error','message'=>'Total Rp 0 tidak bisa pakai QRIS. Pilih Tunai.']); exit; 
-    }
 
     $kode_unik = date('ymd') . rand(100, 999); 
     $midtrans_order_id = "PENJUALAN-" . $kode_unik; 
 
     $params = [
-        'transaction_details' => ['order_id' => $midtrans_order_id, 'gross_amount' => $total_bayar],
+        'transaction_details' => ['order_id' => $midtrans_order_id, 'gross_amount' => $total_akhir_server],
         'customer_details' => [ 'first_name' => $nama ],
         'custom_field1' => $uuid,
         'expiry' => [ 'start_time' => date("Y-m-d H:i:s O"), 'unit' => 'minutes', 'duration' => 30 ]
@@ -85,33 +144,23 @@ if ($metode == 'midtrans') {
     }
 }
 
-// --- INSERT DATABASE (PERBAIKAN UTAMA) ---
-// Perhatikan jumlah tanda tanya (?) ada 13 buah untuk mencocokkan bind_param
-// Kolom: uuid, meja_id, nama_pelanggan, total_harga, uang_bayar, kembalian, status_pembayaran, metode_pembayaran, status_pesanan, snap_token, midtrans_id, kode_voucher, diskon, poin_didapat, user_id
-// Total kolom: 15. 
-// Uang bayar & kembalian kita hardcode 0 di SQL, jadi sisa 13 parameter binding.
+// Insert Transaksi
+// [FIX] Jumlah '?' ada 12, bind_param juga harus 12
+$stmt = $koneksi->prepare("INSERT INTO transaksi (uuid, meja_id, nama_pelanggan, total_harga, uang_bayar, kembalian, status_pembayaran, metode_pembayaran, status_pesanan, snap_token, midtrans_id, kode_voucher, diskon, poin_didapat, user_id) VALUES (?, ?, ?, ?, 0, 0, 'pending', ?, ?, ?, ?, ?, ?, ?, ?)");
 
-$sql = "INSERT INTO transaksi (uuid, meja_id, nama_pelanggan, total_harga, uang_bayar, kembalian, status_pembayaran, metode_pembayaran, status_pesanan, snap_token, midtrans_id, kode_voucher, diskon, poin_didapat, user_id) VALUES (?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-$stmt = $koneksi->prepare($sql);
-
-if (!$stmt) {
-    ob_clean(); echo json_encode(['status' => 'error', 'message' => 'Prepare Failed: ' . $koneksi->error]); exit;
-}
-
-// Bind Param: 13 Variabel
-// s = string, i = integer, d = double
-$stmt->bind_param("sissssssssdii", 
+// [FIX] String tipe data disesuaikan: sissssssssdii (13 karakter -> 12 variabel = Error)
+// KITA UBAH JADI: "sisssssssdii" (12 karakter untuk 12 variabel)
+$stmt->bind_param("sisssssssdii", 
     $uuid,                  // s
     $meja_id,               // i
     $nama,                  // s
-    $total_bayar,           // s (bisa i/d juga, tapi s aman)
-    $status_bayar,          // s
+    $total_akhir_server,    // s (atau d)
     $metode,                // s
     $status_pesanan,        // s
     $snap_token,            // s
     $midtrans_order_id,     // s
     $kode_voucher,          // s
-    $diskon,                // d
+    $diskon_real,           // d
     $poin_dapat,            // i
     $user_id_db             // i
 );
@@ -121,23 +170,19 @@ if ($stmt->execute()) {
     $stmt_detail = $koneksi->prepare("INSERT INTO transaksi_detail (transaksi_id, menu_id, qty, harga_satuan, subtotal) VALUES (?, ?, ?, ?, ?)");
     $stmt_stok = $koneksi->prepare("UPDATE menu SET stok = stok - ? WHERE id = ?");
     
-    foreach ($items as $item) {
-        $qty = (int)($item['qty'] ?? $item['quantity'] ?? 1);
-        $harga = (int)($item['harga'] ?? $item['price'] ?? 0);
-        $sub = $harga * $qty;
-        
-        $stmt_detail->bind_param("iiidd", $trx_id, $item['id'], $qty, $harga, $sub);
+    foreach ($fixed_items as $item) {
+        $stmt_detail->bind_param("iiidd", $trx_id, $item['id'], $item['qty'], $item['harga_satuan'], $item['subtotal']);
         $stmt_detail->execute();
         
-        $stmt_stok->bind_param("ii", $qty, $item['id']);
+        $stmt_stok->bind_param("ii", $item['qty'], $item['id']);
         $stmt_stok->execute();
     }
     
     $koneksi->query("UPDATE meja SET status = 'terisi' WHERE id = '$meja_id'");
     
-    // Kurangi Stok Voucher
-    if($kode_voucher) {
-        $koneksi->query("UPDATE vouchers SET stok = stok - 1 WHERE kode = '$kode_voucher'");
+    if(!empty($kode_voucher)) {
+        $kode_safe = $koneksi->real_escape_string($kode_voucher);
+        $koneksi->query("UPDATE vouchers SET stok = stok - 1 WHERE kode = '$kode_safe'");
     }
 
     ob_clean();

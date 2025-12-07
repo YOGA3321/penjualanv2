@@ -17,8 +17,13 @@ include '../layouts/admin/header.php';
 ?>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h5 class="fw-bold text-danger"><i class="fas fa-fire me-2"></i>LIVE ORDER MONITOR</h5>
-    <small class="text-muted">Pesanan masuk otomatis tanpa refresh</small>
+    <div>
+        <h5 class="fw-bold text-danger"><i class="fas fa-fire me-2"></i>LIVE ORDER MONITOR</h5>
+        <small class="text-muted">Menampilkan pesanan yang sedang diproses (dimasak)</small>
+    </div>
+    <div class="badge bg-light text-danger border">
+        <i class="fas fa-sync fa-spin me-1"></i> Realtime
+    </div>
 </div>
 
 <div class="row" id="dapur-container">
@@ -28,64 +33,60 @@ include '../layouts/admin/header.php';
     </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
     let dapurSource = null;
 
     function startDapurStream() {
-        if (dapurSource) dapurSource.close();
+        if(dapurSource) dapurSource.close();
         
-        // Panggil API SSE Dapur
-        dapurSource = new EventSource(`api/sse_dapur.php?view_cabang=<?= $target_cabang ?>&t=${new Date().getTime()}`);
-
+        // Sesuaikan path ke file sse_dapur.php
+        dapurSource = new EventSource(`api/sse_dapur.php?view_cabang=<?= $target_cabang ?>`);
+        
         dapurSource.onmessage = function(event) {
-            const result = JSON.parse(event.data);
+            const orders = JSON.parse(event.data);
             const container = document.getElementById('dapur-container');
-
-            if(result.status === 'success') {
-                if(result.data.length === 0) {
-                    container.innerHTML = `<div class="col-12 text-center py-5 text-muted"><i class="fas fa-utensils fa-3x mb-3 opacity-50"></i><h5>Tidak ada pesanan aktif</h5><small>Semua pesanan sudah disajikan.</small></div>`;
-                    return;
-                }
-
+            
+            if(orders.length === 0) {
+                container.innerHTML = `<div class="col-12 text-center py-5 text-muted">
+                    <i class="fas fa-utensils fa-3x mb-3 opacity-25"></i>
+                    <h4>Dapur Bersih</h4>
+                    <p>Tidak ada pesanan antri.</p>
+                </div>`;
+            } else {
                 let html = '';
-                result.data.forEach(order => {
-                    // Hitung Durasi
-                    let waktuPesan = new Date(order.created_at).getTime();
-                    let sekarang = new Date().getTime();
-                    let selisih = Math.floor((sekarang - waktuPesan) / 1000 / 60); // Menit
-                    
-                    let badgeWaktu = selisih > 15 ? 'bg-danger' : (selisih > 10 ? 'bg-warning text-dark' : 'bg-white text-dark border');
-                    
+                orders.forEach(o => {
                     let itemsHtml = '';
-                    order.items.forEach(item => {
-                        itemsHtml += `
-                        <div class="d-flex justify-content-between align-items-center border-bottom py-2">
-                            <div class="fw-bold fs-5">${item.qty}x</div>
-                            <div class="flex-grow-1 ms-3 fw-bold text-dark">${item.nama_menu}</div>
-                        </div>`;
+                    o.items.forEach(i => {
+                        itemsHtml += `<li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="fw-bold">${i.nama_menu}</span>
+                                ${i.catatan ? `<div class="text-danger small fst-italic"><i class="fas fa-comment-dots"></i> ${i.catatan}</div>` : ''}
+                            </div>
+                            <span class="badge bg-primary rounded-pill">${i.qty}</span>
+                        </li>`;
                     });
 
+                    // Tombol Selesai Masak
                     html += `
-                    <div class="col-md-6 col-lg-4 mb-4 fade-in">
-                        <div class="card border-0 shadow h-100">
-                            <div class="card-header bg-warning border-0 d-flex justify-content-between align-items-center">
-                                <div>
-                                    <i class="fas fa-chair me-1"></i> <strong>Meja ${order.nomor_meja}</strong>
-                                    <div class="small opacity-75">#${order.id} &bull; ${order.nama_pelanggan}</div>
+                    <div class="col-md-6 col-lg-4 col-xl-3 mb-4">
+                        <div class="card shadow-sm h-100 border-0">
+                            <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+                                <div class="fw-bold">Meja ${o.nomor_meja}</div>
+                                <small>${o.created_at.substr(11, 5)}</small>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="p-3 border-bottom bg-light">
+                                    <small class="text-muted d-block">Pelanggan</small>
+                                    <div class="fw-bold text-truncate">${o.nama_pelanggan}</div>
                                 </div>
-                                <span class="badge ${badgeWaktu}"><i class="far fa-clock me-1"></i> ${selisih} mnt</span>
+                                <ul class="list-group list-group-flush">
+                                    ${itemsHtml}
+                                </ul>
                             </div>
-                            
-                            <div class="bg-light px-3 py-1 small text-muted border-bottom text-end">
-                                <i class="fas fa-map-marker-alt text-danger me-1"></i> ${order.nama_cabang}
-                            </div>
-
-                            <div class="card-body">
-                                ${itemsHtml}
-                            </div>
-                            <div class="card-footer bg-white border-0">
-                                <button class="btn btn-success w-100 fw-bold py-2" onclick="selesaiMasak('${order.id}')">
-                                    <i class="fas fa-check-double me-2"></i> SELESAI & SAJIKAN
+                            <div class="card-footer bg-white p-3">
+                                <button class="btn btn-success w-100 fw-bold py-2" onclick="selesaiMasak(${o.id})">
+                                    <i class="fas fa-check-circle me-2"></i> SELESAI MASAK
                                 </button>
                             </div>
                         </div>
@@ -96,37 +97,49 @@ include '../layouts/admin/header.php';
         };
         
         dapurSource.onerror = function() {
+            // Reconnect jika putus
             dapurSource.close();
-            setTimeout(startDapurStream, 5000);
+            // console.log("SSE Error, reconnecting...");
+            // setTimeout(startDapurStream, 5000); 
         };
     }
 
     function selesaiMasak(id) {
         Swal.fire({
             title: 'Selesai Masak?',
-            text: "Pesanan akan ditandai siap saji.",
+            text: "Pesanan akan ditandai SIAP SAJI dan hilang dari layar dapur.",
             icon: 'question',
             showCancelButton: true,
             confirmButtonColor: '#198754',
-            confirmButtonText: 'Ya, Selesai'
+            confirmButtonText: 'Ya, Selesai!',
+            cancelButtonText: 'Batal'
         }).then((res) => {
             if(res.isConfirmed) {
                 let fd = new FormData();
-                fd.append('action', 'selesai_masak');
+                // [FIX] Gunakan action 'update_status' dan status 'siap_saji'
+                fd.append('action', 'update_status');
                 fd.append('id', id);
+                fd.append('status', 'siap_saji'); 
+                
                 fetch('api/transaksi_action.php', { method: 'POST', body: fd })
                 .then(r => r.json())
                 .then(d => {
                     if(d.status === 'success') {
-                        const Toast = Swal.mixin({toast: true, position: 'top-end', showConfirmButton: false, timer: 2000});
-                        Toast.fire({icon: 'success', title: 'Pesanan Selesai!'});
+                        const Toast = Swal.mixin({
+                            toast: true, position: 'top-end', showConfirmButton: false, timer: 2000, timerProgressBar: true
+                        });
+                        Toast.fire({icon: 'success', title: 'Pesanan Siap Saji!'});
+                        // Data otomatis hilang via SSE, tidak perlu reload
+                    } else {
+                        Swal.fire('Gagal', d.message || 'Terjadi kesalahan', 'error');
                     }
-                });
+                })
+                .catch(err => Swal.fire('Error', 'Gagal koneksi ke server', 'error'));
             }
         });
     }
 
     document.addEventListener('DOMContentLoaded', startDapurStream);
 </script>
-<style>.fade-in { animation: fadeIn 0.5s; }</style>
+
 <?php include '../layouts/admin/footer.php'; ?>

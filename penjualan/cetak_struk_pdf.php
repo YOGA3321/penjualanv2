@@ -22,36 +22,45 @@ if(!$trx) die("Data tidak ditemukan");
 // Ambil Detail
 $details = $koneksi->query("SELECT d.*, m.nama_menu FROM transaksi_detail d JOIN menu m ON d.menu_id = m.id WHERE d.transaksi_id = '".$trx['id']."'");
 
-// Buat HTML Struk
+// Buat HTML Struk (Thermal 58mm Friendly)
 ob_start();
 ?>
 <html>
 <head>
     <style>
-        body { font-family: 'Courier New', monospace; font-size: 10pt; }
+        body { font-family: 'Courier New', monospace; font-size: 9pt; margin: 0; padding: 0; }
         .center { text-align: center; }
-        .line { border-bottom: 1px dashed #000; margin: 10px 0; }
-        .flex { display: flex; justify-content: space-between; }
+        .right { text-align: right; }
+        .line { border-bottom: 1px dashed #000; margin: 5px 0; }
+        .bold { font-weight: bold; }
         table { width: 100%; }
-        td.right { text-align: right; }
+        td { vertical-align: top; }
     </style>
 </head>
 <body>
     <div class="center">
-        <h3 style="margin:0;"><?= $trx['nama_cabang'] ?></h3>
-        <small><?= $trx['alamat'] ?></small>
+        <div class="bold" style="font-size:11pt">WAROENG MODERN BITES</div>
+        <?= $trx['nama_cabang'] ?><br>
+        <?= $trx['alamat'] ?>
     </div>
     <div class="line"></div>
     <div>
-        No: #<?= substr($uuid,0,8) ?><br>
         Tgl: <?= date('d/m/y H:i', strtotime($trx['created_at'])) ?><br>
+        Order: #<?= substr($uuid, 0, 8) ?><br>
         Meja: <?= $trx['nomor_meja'] ?> | <?= $trx['nama_pelanggan'] ?>
     </div>
     <div class="line"></div>
     <table>
-        <?php while($item = $details->fetch_assoc()): ?>
+        <?php 
+        $subtotal_murni = 0;
+        while($item = $details->fetch_assoc()): 
+            $subtotal_murni += $item['subtotal'];
+        ?>
         <tr>
-            <td><?= $item['qty'] ?>x <?= $item['nama_menu'] ?></td>
+            <td colspan="2"><?= $item['nama_menu'] ?></td>
+        </tr>
+        <tr>
+            <td><?= $item['qty'] ?> x <?= number_format($item['harga_satuan']) ?></td>
             <td class="right"><?= number_format($item['subtotal']) ?></td>
         </tr>
         <?php endwhile; ?>
@@ -59,9 +68,22 @@ ob_start();
     <div class="line"></div>
     <table>
         <tr>
-            <td><b>TOTAL</b></td>
-            <td class="right"><b>Rp <?= number_format($trx['total_harga']) ?></b></td>
+            <td>Subtotal</td>
+            <td class="right"><?= number_format($subtotal_murni) ?></td>
         </tr>
+        <?php if($trx['diskon'] > 0): ?>
+        <tr>
+            <td>Diskon <?= $trx['kode_voucher'] ? '('.$trx['kode_voucher'].')' : '' ?></td>
+            <td class="right">-<?= number_format($trx['diskon']) ?></td>
+        </tr>
+        <?php endif; ?>
+        <tr class="bold" style="font-size:10pt">
+            <td>TOTAL</td>
+            <td class="right">Rp <?= number_format($trx['total_harga']) ?></td>
+        </tr>
+        
+        <tr><td colspan="2" style="height:5px"></td></tr>
+        
         <tr>
             <td>Bayar (<?= strtoupper($trx['metode_pembayaran']) ?>)</td>
             <td class="right"><?= number_format($trx['uang_bayar']) ?></td>
@@ -70,11 +92,19 @@ ob_start();
             <td>Kembali</td>
             <td class="right"><?= number_format($trx['kembalian']) ?></td>
         </tr>
+        
+        <?php if(!empty($trx['user_id']) && $trx['poin_didapat'] > 0): ?>
+        <tr>
+            <td colspan="2" class="center" style="padding-top:5px; font-size:8pt;">
+                *** Anda Dapat <?= $trx['poin_didapat'] ?> Poin ***
+            </td>
+        </tr>
+        <?php endif; ?>
     </table>
     <div class="line"></div>
     <div class="center">
-        LUNAS<br>
-        Terima Kasih atas kunjungan Anda!
+        -- TERIMA KASIH --<br>
+        Simpan struk ini sebagai bukti pembayaran.
     </div>
 </body>
 </html>
@@ -84,8 +114,8 @@ $html = ob_get_clean();
 $options = new Options();
 $options->set('isRemoteEnabled', true);
 $dompdf = new Dompdf($options);
-$dompdf->setPaper([0, 0, 226.77, 600], 'portrait'); // Ukuran Kertas Struk (80mm)
 $dompdf->loadHtml($html);
+$dompdf->setPaper([0, 0, 164, 600], 'portrait'); 
 $dompdf->render();
-$dompdf->stream("Struk_#".substr($uuid,0,8).".pdf", array("Attachment" => true));
+$dompdf->stream("struk-$uuid.pdf", array("Attachment" => false));
 ?>

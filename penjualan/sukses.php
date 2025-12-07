@@ -2,6 +2,12 @@
 session_start();
 if(empty($_GET['uuid'])) header("Location: index.php");
 $uuid = $_GET['uuid'];
+
+// Cek User Login
+$dashboard_url = "index.php"; // Default tamu
+if(isset($_SESSION['user_id']) && $_SESSION['level'] == 'pelanggan') {
+    $dashboard_url = "../pelanggan/index.php"; // Ke Dashboard Pelanggan
+}
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -18,18 +24,18 @@ $uuid = $_GET['uuid'];
 </head>
 <body>
     <div class="card card-success p-5 text-center bg-white">
-        <div class="mb-4 text-success animate__animated animate__bounceIn">
+        <div class="mb-4 text-success">
             <i class="fas fa-check-circle fa-5x"></i>
         </div>
         <h3 class="fw-bold mb-2">Pembayaran Sukses!</h3>
-        <p class="text-muted mb-4">Pesanan Anda sedang disiapkan di dapur.</p>
+        <p class="text-muted mb-4">Terima kasih telah memesan.</p>
 
         <div class="d-grid gap-2">
-            <a href="cetak_struk_pdf.php?uuid=<?= $uuid ?>" class="btn btn-danger fw-bold rounded-pill">
+            <a href="cetak_struk_pdf.php?uuid=<?= $uuid ?>" class="btn btn-danger fw-bold rounded-pill" target="_blank">
                 <i class="fas fa-file-pdf me-2"></i> Download Struk
             </a>
-            <a href="index.php" class="btn btn-outline-primary fw-bold rounded-pill">
-                <i class="fas fa-utensils me-2"></i> Pesan Lagi
+            <a href="<?= $dashboard_url ?>" class="btn btn-outline-primary fw-bold rounded-pill">
+                <i class="fas fa-home me-2"></i> Kembali ke Dashboard
             </a>
         </div>
     </div>

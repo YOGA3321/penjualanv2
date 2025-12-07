@@ -3,19 +3,31 @@ session_start();
 require_once '../../auth/koneksi.php';
 header('Content-Type: application/json');
 
-if (!isset($_SESSION['user_id'])) { echo json_encode(['status'=>'error']); exit; }
+if (!isset($_SESSION['user_id'])) { 
+    echo json_encode(['status'=>'error', 'message'=>'Unauthorized']); exit; 
+}
 
-$uuid = $_GET['uuid'] ?? '';
+// [FIX] Ubah penerimaan parameter dari 'uuid' menjadi 'id'
+$id = $_GET['id'] ?? '';
+
+if(empty($id)) {
+    echo json_encode(['status'=>'error', 'message'=>'ID Transaksi kosong']); exit;
+}
 
 // Ambil Header Transaksi
-$query = "SELECT t.*, m.nomor_meja, u.nama as nama_kasir 
+// [FIX] Query WHERE t.id = '$id' (Bukan UUID)
+$query = "SELECT t.*, m.nomor_meja, u.nama as nama_kasir, c.nama_cabang
           FROM transaksi t 
           LEFT JOIN meja m ON t.meja_id = m.id 
           LEFT JOIN users u ON t.user_id = u.id
-          WHERE t.uuid = '$uuid'";
+          LEFT JOIN cabang c ON m.cabang_id = c.id
+          WHERE t.id = '$id'";
+
 $trx = $koneksi->query($query)->fetch_assoc();
 
-if (!$trx) { echo json_encode(['status'=>'error', 'message'=>'Data tidak ditemukan']); exit; }
+if (!$trx) { 
+    echo json_encode(['status'=>'error', 'message'=>'Data transaksi tidak ditemukan']); exit; 
+}
 
 // Ambil Detail Item
 $query_detail = "SELECT d.*, menu.nama_menu 

@@ -7,12 +7,34 @@ $is_logged_in = isset($_SESSION['user_id']);
 $nama_user = $_SESSION['nama'] ?? 'Tamu';
 $level_user = $_SESSION['level'] ?? '';
 
-// --- LOGIKA DATA DARI DB ---
-// 1. QUERY MENU FAVORIT (Acak 3 menu aktif)
-$q_best = $koneksi->query("SELECT * FROM menu WHERE is_active = 1 ORDER BY RAND() LIMIT 3");
+// Enable Error Reporting for Debugging
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 
-// 2. QUERY MENU PROMO (Harga < 25rb atau flag promo)
-$q_promo = $koneksi->query("SELECT * FROM menu WHERE is_active = 1 AND (harga < 25000 OR is_promo = 1) LIMIT 3");
+// --- LOGIKA DATA DARI DB ---
+// 1. QUERY MENU FAVORIT MINGGU INI (Top 3 Terlaris 7 Hari Terakhir)
+$start_week = date('Y-m-d', strtotime('-7 days'));
+$q_best = $koneksi->query("
+    SELECT m.*, SUM(d.qty) as terjual 
+    FROM transaksi_detail d
+    JOIN transaksi t ON d.transaksi_id = t.id
+    JOIN menu m ON d.menu_id = m.id
+    WHERE t.status_pembayaran = 'settlement' 
+    AND t.created_at >= '$start_week'
+    AND m.is_active = 1
+    GROUP BY m.id
+    ORDER BY terjual DESC
+    LIMIT 3
+");
+
+// Fallback jika belum ada transaksi minggu ini: Ambil 3 menu acak
+if ($q_best->num_rows == 0) {
+    $q_best = $koneksi->query("SELECT *, 0 as terjual FROM menu WHERE is_active = 1 ORDER BY RAND() LIMIT 3");
+}
+
+// 2. QUERY MENU PROMO (Hanya is_promo = 1)
+$q_promo = $koneksi->query("SELECT * FROM menu WHERE is_active = 1 AND is_promo = 1 LIMIT 3");
 
 // 3. QUERY CABANG
 $q_cabang = $koneksi->query("SELECT * FROM cabang ORDER BY is_pusat DESC, id ASC");
@@ -300,6 +322,13 @@ $q_cabang = $koneksi->query("SELECT * FROM cabang ORDER BY is_pusat DESC, id ASC
             .hero-img-wrapper { max-width: 280px; margin: 30px auto; }
             .vl { display: none; }
             .stats-container { justify-content: center; display: flex; width: 100%; gap: 20px; flex-wrap: wrap; }
+            .hero-img-wrapper { max-width: 280px; margin: 30px auto; }
+            .vl { display: none; }
+            .stats-container { justify-content: center; display: flex; width: 100%; gap: 20px; flex-wrap: wrap; }
+            .auth-buttons { display: none; }
+        }
+        @media (min-width: 769px) {
+            .auth-buttons { display: block; }
         }
     </style>
 </head>
@@ -315,14 +344,15 @@ $q_cabang = $koneksi->query("SELECT * FROM cabang ORDER BY is_pusat DESC, id ASC
             <ul class="nav-links">
                 <li><a href="#home" class="nav-link active">Beranda</a></li>
                 <li><a href="#about" class="nav-link">Tentang</a></li>
-                <?php if($q_promo->num_rows > 0): ?><li><a href="#promo" class="nav-link">Promo</a></li><?php endif; ?>
+                <li><a href="#services" class="nav-link">Layanan</a></li>
+                <?php if($q_promo && $q_promo->num_rows > 0): ?><li><a href="#promo" class="nav-link">Promo</a></li><?php endif; ?>
                 <li><a href="#menu" class="nav-link">Menu</a></li>
                 <li><a href="#contact" class="nav-link">Lokasi</a></li>
             </ul>
 
-            <div class="hidden md:block">
+            <div class="auth-buttons">
             <?php if ($is_logged_in): ?>
-                <a href="<?= ($level_user=='pelanggan') ? 'pelanggan/index.php' : 'admin/index.php' ?>" class="btn btn-primary">
+                <a href="<?= ($level_user=='pelanggan') ? 'pelanggan/' : 'admin/' ?>" class="btn btn-primary">
                     <?= ($level_user=='pelanggan') ? '<i class="fas fa-utensils"></i> Pesan' : '<i class="fas fa-tachometer-alt"></i> Dashboard' ?>
                 </a>
             <?php else: ?>
@@ -430,27 +460,96 @@ $q_cabang = $koneksi->query("SELECT * FROM cabang ORDER BY is_pusat DESC, id ASC
         </div>
     </section>
 
-    <?php if($q_promo->num_rows > 0): ?>
+    <section id="services" style="background: #f8fafc; padding: 100px 0;">
+        <div class="container">
+            <div class="text-center mb-6" data-aos="fade-up">
+                <h5 class="text-primary font-bold uppercase">Layanan Kami</h5>
+                <h2 style="font-size: 2.5rem; font-weight: 800;">Kenapa Memilih Kami?</h2>
+            </div>
+            
+            <div class="grid-3">
+                <div class="menu-card" data-aos="fade-up" data-aos-delay="100" style="padding: 30px; text-align: center;">
+                    <div style="width: 80px; height: 80px; background: #e0e7ff; color: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px auto; font-size: 2rem;">
+                        <i class="fas fa-carrot"></i>
+                    </div>
+                    <h4 style="font-weight: 700; margin-bottom: 10px;">Bahan Segar</h4>
+                    <p style="color: #64748b; font-size: 0.95rem;">Kami menjamin setiap bahan yang digunakan dipetik langsung dari petani lokal setiap pagi.</p>
+                </div>
+                
+                <div class="menu-card" data-aos="fade-up" data-aos-delay="200" style="padding: 30px; text-align: center;">
+                    <div style="width: 80px; height: 80px; background: #fce7f3; color: var(--secondary); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px auto; font-size: 2rem;">
+                        <i class="fas fa-rocket"></i>
+                    </div>
+                    <h4 style="font-weight: 700; margin-bottom: 10px;">Penyajian Cepat</h4>
+                    <p style="color: #64748b; font-size: 0.95rem;">Teknologi dapur kami memastikan pesanan Anda tersaji dalam waktu kurang dari 15 menit.</p>
+                </div>
+                
+                <div class="menu-card" data-aos="fade-up" data-aos-delay="300" style="padding: 30px; text-align: center;">
+                    <div style="width: 80px; height: 80px; background: #dcfce7; color: #10b981; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px auto; font-size: 2rem;">
+                        <i class="fas fa-wifi"></i>
+                    </div>
+                    <h4 style="font-weight: 700; margin-bottom: 10px;">Tempat Nyaman</h4>
+                    <p style="color: #64748b; font-size: 0.95rem;">Free WiFi kencang, stopkontak di setiap meja, dan suasana yang cocok untuk WFC.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <?php if($q_promo && $q_promo->num_rows > 0): ?>
     <section id="promo" style="background: #fff1f2; padding: 100px 0;">
         <div class="container">
             <div class="text-center mb-6" data-aos="fade-up">
                 <h5 style="color: #e11d48;" class="font-bold uppercase">HOT DEALS 🔥</h5>
                 <h2 style="font-size: 2.5rem; font-weight: 800;">Promo Spesial Hari Ini</h2>
             </div>
-            <div class="grid-3">
+            
+            <div class="row justify-content-center gap-4">
                 <?php while($p = $q_promo->fetch_assoc()): ?>
-                <div class="menu-card" data-aos="fade-up">
-                    <div class="card-img">
-                        <img src="<?= $p['gambar'] ? $p['gambar'] : 'assets/images/menu1.jpg' ?>" alt="<?= $p['nama_menu'] ?>">
-                        <div class="price-badge" style="background: #e11d48; color: white;">Rp <?= number_format($p['harga'],0,',','.') ?></div>
-                    </div>
-                    <div class="card-body">
-                        <h4 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 10px;"><?= $p['nama_menu'] ?></h4>
-                        <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 20px;"><?= substr($p['deskripsi'], 0, 50) ?>...</p>
-                        <a href="penjualan/index.php" class="btn" style="background: #e11d48; color: white; width:100%; text-align:center;">Ambil Promo</a>
+                <div class="col-half" style="flex: 0 0 350px; max-width: 350px;" data-aos="fade-up">
+                    <div class="menu-card">
+                        <div class="card-img">
+                            <img src="<?= $p['gambar'] ? 'admin/'.$p['gambar'] : 'assets/images/menu1.jpg' ?>" alt="<?= $p['nama_menu'] ?>">
+                            <div class="price-badge" style="background: #e11d48; color: white;">
+                                 Rp <?= number_format($p['harga_promo'],0,',','.') ?>
+                            </div>
+                        </div>
+                        <div class="card-body text-center">
+                            <h4 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 5px;"><?= $p['nama_menu'] ?></h4>
+                            <div class="mb-3">
+                                <span style="text-decoration: line-through; color: #94a3b8; font-size: 0.9rem;">Rp <?= number_format($p['harga'],0,',','.') ?></span>
+                            </div>
+                            <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 20px;"><?= substr($p['deskripsi'], 0, 50) ?>...</p>
+                            <a href="pelanggan/index.php" class="btn" style="background: #e11d48; color: white; width:100%;">Ambil Promo</a>
+                        </div>
                     </div>
                 </div>
                 <?php endwhile; ?>
+            </div>
+        </div>
+    </section>
+    <?php else: ?>
+    <section id="promo" style="background: #fff1f2; padding: 100px 0; overflow: hidden; position: relative;">
+        <div style="position: absolute; top: -50px; left: -50px; width: 200px; height: 200px; background: rgba(225, 29, 72, 0.05); border-radius: 50%;"></div>
+        <div style="position: absolute; bottom: -50px; right: -50px; width: 300px; height: 300px; background: rgba(225, 29, 72, 0.05); border-radius: 50%;"></div>
+
+        <div class="container text-center relative" style="z-index: 2;">
+            <div data-aos="fade-up">
+                <h5 style="color: #e11d48;" class="font-bold uppercase tracking-wide mb-2">Stay Tuned</h5>
+                <h2 style="font-size: 3rem; font-weight: 800; margin-bottom: 20px; background: linear-gradient(to right, #e11d48, #f43f5e); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Promo Menarik Segera Hadir!</h2>
+                <p style="color: #64748b; margin-bottom: 50px; font-size: 1.1rem; max-width: 600px; margin-left: auto; margin-right: auto;">
+                    Kami sedang menyiapkan kejutan spesial untuk Anda. Pantau terus halaman ini untuk mendapatkan penawaran terbaik dari kami.
+                </p>
+                
+                <div class="flex justify-center mb-6">
+                    <div class="animate-float" style="background: white; padding: 25px 50px; border-radius: 50px; box-shadow: 0 20px 50px rgba(225, 29, 72, 0.15); border: 2px dashed #fda4af; display: inline-flex; align-items: center; gap: 15px;">
+                        <i class="fas fa-gift" style="font-size: 2rem; color: #e11d48;"></i>
+                        <span style="font-size: 1.5rem; font-weight: 800; color: #e11d48; letter-spacing: 1px;">COMING SOON</span>
+                    </div>
+                </div>
+
+                <div>
+                    <a href="#menu" class="btn btn-outline" style="color: #e11d48; border-color: #e11d48; background: transparent;">Lihat Menu Lainnya</a>
+                </div>
             </div>
         </div>
     </section>
@@ -464,10 +563,15 @@ $q_cabang = $koneksi->query("SELECT * FROM cabang ORDER BY is_pusat DESC, id ASC
             </div>
             
             <div class="grid-3">
-                <?php while($m = $q_best->fetch_assoc()): ?>
+                <?php $rank = 1; while($m = $q_best->fetch_assoc()): ?>
                 <div class="menu-card" data-aos="fade-up">
                     <div class="card-img">
-                        <img src="<?= $m['gambar'] ? $m['gambar'] : 'assets/images/menu2.jpg' ?>" alt="<?= $m['nama_menu'] ?>">
+                        <?php if($rank <= 3): ?>
+                        <div style="position: absolute; top: 15px; left: 15px; background: #fbbf24; color: #fff; width: 35px; height: 35px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; box-shadow: 0 5px 15px rgba(251, 191, 36, 0.4); z-index: 2;">
+                            #<?= $rank++ ?>
+                        </div>
+                        <?php endif; ?>
+                        <img src="<?= $m['gambar'] ? 'admin/'.$m['gambar'] : 'assets/images/menu2.jpg' ?>" alt="<?= $m['nama_menu'] ?>">
                         <div class="price-badge">Rp <?= number_format($m['harga'],0,',','.') ?></div>
                     </div>
                     <div class="card-body">
@@ -476,14 +580,14 @@ $q_cabang = $koneksi->query("SELECT * FROM cabang ORDER BY is_pusat DESC, id ASC
                             <div style="color: #f59e0b; font-size: 0.8rem;"><i class="fas fa-star"></i> 5.0</div>
                         </div>
                         <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 20px;"><?= substr($m['deskripsi'], 0, 60) ?>...</p>
-                        <a href="penjualan/index.php" style="display: block; text-align: center; padding: 10px; border: 2px solid var(--primary); color: var(--primary); border-radius: 10px; font-weight: 600;">Pesan Sekarang</a>
+                        <a href="pelanggan/index.php" style="display: block; text-align: center; padding: 10px; border: 2px solid var(--primary); color: var(--primary); border-radius: 10px; font-weight: 600;">Pesan Sekarang</a>
                     </div>
                 </div>
                 <?php endwhile; ?>
             </div>
             
             <div class="text-center" style="margin-top: 50px;">
-                <a href="penjualan/index.php" class="btn btn-primary">Lihat Menu Lengkap</a>
+                <a href="pelanggan/index.php" class="btn btn-primary">Lihat Menu Lengkap</a>
             </div>
         </div>
     </section>
@@ -506,12 +610,12 @@ $q_cabang = $koneksi->query("SELECT * FROM cabang ORDER BY is_pusat DESC, id ASC
                             </div>
                             <div>
                                 <h5 style="font-weight: 700; display:flex; align-items:center; gap:10px;">
-                                    <?= $c['nama_cabang'] ?>
+                                    <?= htmlspecialchars($c['nama_cabang']) ?>
                                     <?php if($c['is_pusat']): ?>
                                         <span style="font-size:0.6rem; background:var(--primary); color:white; padding:2px 8px; border-radius:20px;">PUSAT</span>
                                     <?php endif; ?>
                                 </h5>
-                                <p style="font-size: 0.85rem; color: #64748b; margin-bottom:2px;"><?= $c['alamat'] ?></p>
+                                <p style="font-size: 0.85rem; color: #64748b; margin-bottom:2px;"><?= htmlspecialchars($c['alamat']) ?></p>
                                 <div style="font-size: 0.8rem; color: #94a3b8;">
                                     <i class="far fa-clock"></i> <?= date('H:i', strtotime($c['jam_buka'])) ?> - <?= date('H:i', strtotime($c['jam_tutup'])) ?>
                                     <span style="margin-left:10px; color: <?= $c['is_open']?'#10b981':'#ef4444' ?>; font-weight:bold;">

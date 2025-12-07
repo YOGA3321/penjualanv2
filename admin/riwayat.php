@@ -6,53 +6,48 @@ require_once '../auth/koneksi.php';
 $page_title = "Riwayat Transaksi";
 $active_menu = "riwayat";
 
-// --- 1. LOGIKA FILTER CABANG ---
+// --- 1. FILTER CABANG ---
 $cabang_id = $_SESSION['cabang_id'] ?? 0;
 $level = $_SESSION['level'] ?? '';
+$is_global = ($level == 'admin' && ($_SESSION['view_cabang_id'] ?? 'pusat') == 'pusat');
 
-$view_cabang = "";
-$is_global = false;
-
-if ($level == 'admin') {
-    $view_cabang = $_SESSION['view_cabang_id'] ?? 'pusat';
-    if ($view_cabang == 'pusat') {
-        $is_global = true;
-    } else {
-        $cabang_id = $view_cabang;
-    }
-}
-
-// --- 2. LOGIKA PAGINATION ---
-$limit = 20; // Jumlah data per halaman
-$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-$start = ($page > 1) ? ($page * $limit) - $limit : 0;
-
-// --- 3. BUILD QUERY ---
-// Base Query (Filter)
-$where_sql = "";
+// --- 2. BASE QUERY (WHERE) ---
+$where_sql = " WHERE 1=1 ";
 if (!$is_global) {
-    $target_cabang = ($level == 'admin') ? $view_cabang : $_SESSION['cabang_id'];
-    $where_sql = " WHERE m.cabang_id = '$target_cabang'";
+    $target_cabang = ($level == 'admin') ? $_SESSION['view_cabang_id'] : $_SESSION['cabang_id'];
+    $where_sql .= " AND m.cabang_id = '$target_cabang'";
 }
 
-// A. Hitung Total Data (Untuk Navigasi Halaman)
+// Search Logic
+$search_kw = "";
+if(isset($_GET['search']) && !empty($_GET['search'])) {
+    $search_kw = $koneksi->real_escape_string($_GET['search']);
+    $where_sql .= " AND (t.nama_pelanggan LIKE '%$search_kw%' OR t.uuid LIKE '%$search_kw%')";
+}
+
+// --- 3. PAGINATION LOGIC ---
+$limit = 10; // Jumlah data per halaman
+$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+if($page < 1) $page = 1;
+$start = ($page - 1) * $limit;
+
+// Hitung Total Data (Untuk Pagination)
 $sql_count = "SELECT COUNT(*) as total 
               FROM transaksi t
               JOIN meja m ON t.meja_id = m.id
+              JOIN cabang c ON m.cabang_id = c.id
               $where_sql";
 $total_data = $koneksi->query($sql_count)->fetch_assoc()['total'];
 $total_pages = ceil($total_data / $limit);
 
-// B. Ambil Data (Dengan Limit)
-$sql = "SELECT t.*, m.nomor_meja, u.nama as nama_kasir, c.nama_cabang 
+// --- 4. DATA QUERY ---
+$sql = "SELECT t.*, m.nomor_meja, c.nama_cabang 
         FROM transaksi t
         JOIN meja m ON t.meja_id = m.id
-        LEFT JOIN cabang c ON m.cabang_id = c.id
-        LEFT JOIN users u ON t.user_id = u.id
+        JOIN cabang c ON m.cabang_id = c.id
         $where_sql
         ORDER BY t.created_at DESC 
-        LIMIT $start, $limit"; // Pagination Query
-
+        LIMIT $start, $limit";
 $data = $koneksi->query($sql);
 
 include '../layouts/admin/header.php';
@@ -60,214 +55,180 @@ include '../layouts/admin/header.php';
 
 <div class="card border-0 shadow-sm">
     <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-        <h6 class="m-0 font-weight-bold text-primary">
-            Daftar Transaksi
-            <?php if($is_global): ?>
-                <span class="badge bg-secondary ms-2">Semua Cabang</span>
-            <?php endif; ?>
-        </h6>
-        <div>
-            <small class="text-muted me-3">Total: <?= number_format($total_data) ?> Transaksi</small>
-            <button class="btn btn-sm btn-outline-secondary" onclick="window.print()">
-                <i class="fas fa-print me-1"></i> Cetak Laporan
-            </button>
-        </div>
-    </div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th class="ps-4">No</th> 
-                        <th>Waktu</th>
-                        <?php if($is_global): ?> <th>Cabang</th> <?php endif; ?>
-                        <th>Meja</th>
-                        <th>Pelanggan</th>
-                        <th>Total</th>
-                        <th>Status</th>
-                        <th class="text-end pe-4">Aksi</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if($data->num_rows > 0): ?>
-                        <?php 
-                        $no = $start + 1; // Penomoran lanjut antar halaman
-                        while($row = $data->fetch_assoc()): 
-                        ?>
-                        <tr>
-                            <td class="ps-4 fw-bold text-muted"><?= $no++ ?></td>
-                            
-                            <td>
-                                <div class="fw-bold"><?= date('d/m/Y', strtotime($row['created_at'])) ?></div>
-                                <small class="text-muted"><?= date('H:i', strtotime($row['created_at'])) ?></small>
-                            </td>
-
-                            <?php if($is_global): ?>
-                                <td><span class="badge bg-info text-dark"><i class="fas fa-store me-1"></i> <?= $row['nama_cabang'] ?></span></td>
-                            <?php endif; ?>
-
-                            <td><span class="badge bg-dark">Meja <?= $row['nomor_meja'] ?></span></td>
-                            <td><?= htmlspecialchars($row['nama_pelanggan']) ?></td>
-                            <td class="fw-bold text-primary">Rp <?= number_format($row['total_harga']) ?></td>
-                            <td>
-                                <?php 
-                                    $st = $row['status_pembayaran'];
-                                    if ($st == 'settlement') {
-                                        echo "<span class='badge bg-success'>LUNAS</span>";
-                                    } elseif ($st == 'pending') {
-                                        echo "<span class='badge bg-warning text-dark'>PENDING</span>";
-                                    } elseif ($st == 'cancel' || $st == 'expire') {
-                                        echo "<span class='badge bg-secondary'>BATAL</span>";
-                                    } else {
-                                        echo "<span class='badge bg-danger'>".strtoupper($st)."</span>";
-                                    }
-                                ?>
-                            </td>
-                            <td class="text-end pe-4">
-                                <button class="btn btn-sm btn-info text-white me-1" onclick="showDetail('<?= $row['uuid'] ?>')" title="Detail">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-
-                                <?php if($row['status_pembayaran'] == 'settlement'): ?>
-                                    <a href="../penjualan/struk.php?uuid=<?= $row['uuid'] ?>&print=true" target="_blank" class="btn btn-sm btn-secondary ms-1" title="Cetak Struk">
-                                        <i class="fas fa-print"></i>
-                                    </a>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-                        <?php endwhile; ?>
-                    <?php else: ?>
-                        <tr>
-                            <td colspan="<?= $is_global ? 8 : 7 ?>" class="text-center py-5 text-muted">
-                                <img src="../assets/images/pngkey.com-food-network-logo-png-430444.png" width="50" class="mb-3 opacity-25"><br>
-                                Belum ada data transaksi.
-                            </td>
-                        </tr>
-                    <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
+        <h5 class="mb-0 fw-bold">Riwayat Transaksi</h5>
+        
+        <form class="d-flex" method="GET" id="searchForm">
+            <div class="input-group input-group-sm" style="width: 250px;">
+                <span class="input-group-text bg-light border-end-0"><i class="fas fa-search text-muted"></i></span>
+                <input type="text" name="search" id="searchInput" class="form-control border-start-0" 
+                       placeholder="Cari nama/struk..." value="<?= htmlspecialchars($search_kw) ?>" autocomplete="off">
+            </div>
+        </form>
     </div>
     
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="bg-light">
+                <tr>
+                    <th class="ps-4">Waktu</th>
+                    <th>Pelanggan</th>
+                    <th>Cabang</th>
+                    <th>Total</th>
+                    <th>Diskon</th>
+                    <th>Metode</th>
+                    <th>Status</th>
+                    <th class="text-end pe-4">Aksi</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if($data->num_rows > 0): ?>
+                    <?php while($row = $data->fetch_assoc()): ?>
+                    <tr>
+                        <td class="ps-4 text-muted small"><?= date('d/m/y H:i', strtotime($row['created_at'])) ?></td>
+                        <td>
+                            <div class="fw-bold"><?= htmlspecialchars($row['nama_pelanggan']) ?></div>
+                            <small class="text-muted text-uppercase">#<?= substr($row['uuid'],0,8) ?></small>
+                        </td>
+                        <td><?= $row['nama_cabang'] ?> <small>(Meja <?= $row['nomor_meja'] ?>)</small></td>
+                        <td class="fw-bold text-primary">Rp <?= number_format($row['total_harga']) ?></td>
+                        <td class="text-danger">
+                            <?php if($row['diskon'] > 0): ?>
+                                -<?= number_format($row['diskon']) ?>
+                                <br><small class="text-muted"><?= $row['kode_voucher'] ?></small>
+                            <?php else: ?> - <?php endif; ?>
+                        </td>
+                        <td><?= strtoupper($row['metode_pembayaran']) ?></td>
+                        <td>
+                            <?php 
+                                $s = $row['status_pembayaran'];
+                                $cls = ($s=='settlement')?'success':(($s=='pending')?'warning':'danger');
+                                echo "<span class='badge bg-$cls'>".strtoupper($s)."</span>";
+                            ?>
+                        </td>
+                        <td class="text-end pe-4" style="min-width: 100px;">
+                            <button class="btn btn-sm btn-info text-white me-1" onclick="showDetail(<?= $row['id'] ?>)" title="Lihat">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <a href="../penjualan/cetak_struk_pdf.php?uuid=<?= $row['uuid'] ?>" target="_blank" class="btn btn-sm btn-outline-danger" title="Print">
+                                <i class="fas fa-print"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    <?php endwhile; ?>
+                <?php else: ?>
+                    <tr><td colspan="8" class="text-center py-5 text-muted">Tidak ada data ditemukan.</td></tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+
+    <?php if($total_pages > 1): ?>
     <div class="card-footer bg-white py-3">
-        <nav aria-label="Page navigation">
+        <nav>
             <ul class="pagination justify-content-center mb-0">
                 <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
-                    <a class="page-link" href="?page=<?= $page - 1 ?>" tabindex="-1">Previous</a>
+                    <a class="page-link" href="?page=<?= $page-1 ?>&search=<?= $search_kw ?>">Prev</a>
                 </li>
-
-                <?php
-                // Tampilkan max 5 halaman di sekitar halaman aktif
-                $start_loop = max(1, $page - 2);
-                $end_loop = min($total_pages, $page + 2);
-
-                if($start_loop > 1) { 
-                    echo '<li class="page-item"><a class="page-link" href="?page=1">1</a></li>';
-                    if($start_loop > 2) echo '<li class="page-item disabled"><span class="page-link">...</span></li>';
-                }
-
-                for ($i = $start_loop; $i <= $end_loop; $i++): 
-                ?>
-                    <li class="page-item <?= ($page == $i) ? 'active' : '' ?>">
-                        <a class="page-link" href="?page=<?= $i ?>"><?= $i ?></a>
-                    </li>
+                
+                <?php for($i=1; $i<=$total_pages; $i++): ?>
+                    <?php if($i == 1 || $i == $total_pages || ($i >= $page-1 && $i <= $page+1)): ?>
+                        <li class="page-item <?= ($i == $page) ? 'active' : '' ?>">
+                            <a class="page-link" href="?page=<?= $i ?>&search=<?= $search_kw ?>"><?= $i ?></a>
+                        </li>
+                    <?php elseif($i == $page-2 || $i == $page+2): ?>
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    <?php endif; ?>
                 <?php endfor; ?>
 
-                <?php 
-                // [FIXED] Tag PHP ditambahkan disini agar logika IF tidak bocor jadi teks HTML
-                if($end_loop < $total_pages) {
-                    if($end_loop < $total_pages - 1) echo '<li class="page-item disabled"><span class="page-link">...</span></li>';
-                    echo '<li class="page-item"><a class="page-link" href="?page='.$total_pages.'">'.$total_pages.'</a></li>';
-                }
-                ?>
-
                 <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>">
-                    <a class="page-link" href="?page=<?= $page + 1 ?>">Next</a>
+                    <a class="page-link" href="?page=<?= $page+1 ?>&search=<?= $search_kw ?>">Next</a>
                 </li>
             </ul>
         </nav>
+        <div class="text-center text-muted small mt-2">
+            Halaman <?= $page ?> dari <?= $total_pages ?> (Total <?= $total_data ?> Data)
+        </div>
     </div>
+    <?php endif; ?>
 </div>
+
+<script>
+    let timeout = null;
+    const searchInput = document.getElementById('searchInput');
+    const searchForm = document.getElementById('searchForm');
+
+    searchInput.addEventListener('input', function() {
+        // Reset timer jika user masih mengetik
+        clearTimeout(timeout);
+
+        // Tunggu 600ms (0.6 detik) setelah berhenti mengetik
+        timeout = setTimeout(() => {
+            searchForm.submit();
+        }, 600);
+    });
+    
+    // Focus kembali ke input setelah reload (opsional, browser modern biasanya ingat)
+    searchInput.focus();
+    var val = searchInput.value; 
+    searchInput.value = ''; 
+    searchInput.value = val; // Trik taruh kursor di akhir
+</script>
 
 <div class="modal fade" id="detailModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header bg-light">
+            <div class="modal-header">
                 <h5 class="modal-title fw-bold">Detail Transaksi</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <div class="d-flex justify-content-between mb-3 border-bottom pb-2">
-                    <span>ID: <strong id="d_id"></strong></span>
-                    <span id="d_waktu" class="text-muted"></span>
+                <div class="alert alert-light border d-flex justify-content-between mb-3">
+                    <span id="d_waktu"></span>
+                    <span id="d_status_pesanan" class="badge"></span>
                 </div>
-                <div class="mb-3">
-                    <div class="text-muted small">Pelanggan</div>
-                    <div class="fw-bold" id="d_pelanggan"></div>
-                </div>
-                <div class="table-responsive mb-3">
-                    <table class="table table-sm table-borderless">
-                        <thead class="text-muted border-bottom">
-                            <tr><th>Menu</th><th class="text-end">Qty</th><th class="text-end">Total</th></tr>
-                        </thead>
-                        <tbody id="d_items"></tbody>
-                    </table>
-                </div>
-                <div class="bg-light p-3 rounded">
-                    <div class="d-flex justify-content-between fw-bold mb-2">
-                        <span>TOTAL TAGIHAN</span>
-                        <span id="d_total" class="text-primary fs-5"></span>
-                    </div>
-                    <div class="d-flex justify-content-between small text-muted">
-                        <span>Bayar</span>
-                        <span id="d_bayar"></span>
-                    </div>
-                    <div class="d-flex justify-content-between small text-muted">
-                        <span>Kembalian</span>
-                        <span id="d_kembalian"></span>
-                    </div>
-                </div>
-                <div class="mt-3 text-center">
-                    Status: <span id="d_status_pesanan" class="badge"></span>
-                </div>
+                <div class="mb-3"><label class="small text-muted fw-bold">Pelanggan</label><div id="d_pelanggan" class="fw-bold"></div></div>
+                <table class="table table-sm table-borderless bg-light rounded">
+                    <tbody id="d_items"></tbody>
+                    <tfoot class="border-top">
+                        <tr class="text-danger" id="row_diskon_modal" style="display:none">
+                            <td colspan="2">Diskon</td><td class="text-end fw-bold" id="d_diskon"></td>
+                        </tr>
+                        <tr>
+                            <td colspan="2" class="fw-bold">TOTAL</td><td class="text-end fw-bold fs-5 text-primary" id="d_total"></td>
+                        </tr>
+                    </tfoot>
+                </table>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-function showDetail(uuid) {
-    Swal.fire({title: 'Memuat...', didOpen: () => Swal.showLoading()});
-
-    fetch(`api/get_detail_transaksi.php?uuid=${uuid}`)
-    .then(res => res.json())
-    .then(data => {
-        Swal.close();
+function showDetail(id) {
+    fetch('api/get_detail_transaksi.php?id=' + id).then(r => r.json()).then(data => {
         if(data.status === 'success') {
-            const h = data.header;
-            document.getElementById('d_id').innerText = '#' + h.id;
+            let h = data.header;
             document.getElementById('d_waktu').innerText = h.created_at;
             document.getElementById('d_pelanggan').innerText = h.nama_pelanggan + ' (Meja ' + h.nomor_meja + ')';
             document.getElementById('d_total').innerText = 'Rp ' + parseInt(h.total_harga).toLocaleString('id-ID');
-            document.getElementById('d_bayar').innerText = 'Rp ' + parseInt(h.uang_bayar).toLocaleString('id-ID');
-            document.getElementById('d_kembalian').innerText = 'Rp ' + parseInt(h.kembalian).toLocaleString('id-ID');
+            document.getElementById('d_status_pesanan').innerText = h.status_pembayaran.toUpperCase();
+            document.getElementById('d_status_pesanan').className = 'badge ' + (h.status_pembayaran=='settlement'?'bg-success':'bg-warning');
             
-            const badge = document.getElementById('d_status_pesanan');
-            badge.innerText = h.status_pembayaran.toUpperCase();
-            badge.className = 'badge ' + (h.status_pembayaran === 'settlement' ? 'bg-success' : 'bg-warning');
+            let diskon = parseInt(h.diskon);
+            if(diskon > 0) {
+                document.getElementById('row_diskon_modal').style.display = 'table-row';
+                document.getElementById('d_diskon').innerText = '- Rp ' + diskon.toLocaleString('id-ID');
+            } else {
+                document.getElementById('row_diskon_modal').style.display = 'none';
+            }
 
-            let htmlItems = '';
-            data.items.forEach(item => {
-                htmlItems += `<tr><td>${item.nama_menu}</td><td class="text-end">${item.qty}x</td><td class="text-end">Rp ${parseInt(item.subtotal).toLocaleString()}</td></tr>`;
-            });
-            document.getElementById('d_items').innerHTML = htmlItems;
-
+            let html = '';
+            data.items.forEach(i => { html += `<tr><td>${i.nama_menu}</td><td class="text-end">${i.qty}x</td><td class="text-end">Rp ${parseInt(i.subtotal).toLocaleString()}</td></tr>`; });
+            document.getElementById('d_items').innerHTML = html;
+            
             new bootstrap.Modal(document.getElementById('detailModal')).show();
-        } else {
-            Swal.fire('Error', data.message, 'error');
         }
-    })
-    .catch(err => Swal.fire('Error', 'Gagal mengambil data', 'error'));
+    });
 }
 </script>
 
