@@ -1,89 +1,104 @@
 <?php
-// Lokasi: admin/api/midtrans_webhook.php
+// admin/api/midtrans_webhook.php
+require_once '../../auth/koneksi.php';
+require_once dirname(__FILE__) . '/../../vendor/autoload.php';
 
-// 1. Load Koneksi Database
-// Sesuaikan path ini dengan struktur folder Anda
-require_once '../../auth/koneksi.php'; 
+// Konfigurasi Midtrans
+\Midtrans\Config::$serverKey = 'SB-Mid-server-p0J5Kw0tX_JHY_HoYJOQzYXQ'; // Pastikan Key Benar
+\Midtrans\Config::$isProduction = false;
+\Midtrans\Config::$isSanitized = true;
 
-// Jika menggunakan library Midtrans, load autoloader (opsional jika manual)
-// require_once dirname(__FILE__) . '/../../vendor/autoload.php';
-
-// Set Header agar response berupa JSON
-header('Content-Type: application/json');
-
-// 2. Ambil Raw Body dari Cloudflare / Midtrans
-$json_result = file_get_contents('php://input');
-$notification = json_decode($json_result);
-
-// Validasi jika data kosong
-if (!$notification) {
-    http_response_code(404);
-    echo json_encode(['status' => 'error', 'message' => 'Invalid JSON']);
-    exit();
+try {
+    $notif = new \Midtrans\Notification();
+} catch (Exception $e) {
+    exit($e->getMessage());
 }
 
-// 3. Ambil Data Penting
-$transaction_status = $notification->transaction_status;
-$payment_type       = $notification->payment_type;
-$order_id           = $notification->order_id;
-$fraud_status       = $notification->fraud_status;
+$transaction = $notif->transaction_status;
+$type = $notif->payment_type;
+$order_id = $notif->order_id;
+$fraud = $notif->fraud_status;
 
-// 4. Logika Penentuan Status Pembayaran
-$status_transaksi = 'pending';
+// 1. Cari Transaksi Berdasarkan Order ID Midtrans
+// Kita perlu mengambil data total_harga juga untuk update uang_bayar nanti
+$q = $koneksi->query("SELECT * FROM transaksi WHERE midtrans_id = '$order_id'");
+$trx = $q->fetch_assoc();
 
-if ($transaction_status == 'capture') {
-    if ($payment_type == 'credit_card') {
-        if ($fraud_status == 'challenge') {
-            $status_transaksi = 'pending';
-        } else {
-            $status_transaksi = 'dibayar';
-        }
+if (!$trx) exit("Transaksi tidak ditemukan");
+
+$uuid = $trx['uuid'];
+$status_sebelumnya = $trx['status_pembayaran'];
+
+// 2. Tentukan Status Baru
+$status_db = 'pending';
+if ($transaction == 'capture') {
+    if ($type == 'credit_card') {
+        $status_db = ($fraud == 'challenge') ? 'challenge' : 'settlement';
     }
-} else if ($transaction_status == 'settlement') {
-    // Status Paling Penting: Uang sudah masuk (Gopay, VA, QRIS)
-    $status_transaksi = 'dibayar';
-} else if ($transaction_status == 'pending') {
-    $status_transaksi = 'pending';
-} else if ($transaction_status == 'deny') {
-    $status_transaksi = 'gagal';
-} else if ($transaction_status == 'expire') {
-    $status_transaksi = 'kadaluarsa';
-} else if ($transaction_status == 'cancel') {
-    $status_transaksi = 'dibatalkan';
+} else if ($transaction == 'settlement') {
+    $status_db = 'settlement';
+} else if ($transaction == 'pending') {
+    $status_db = 'pending';
+} else if ($transaction == 'deny') {
+    $status_db = 'gagal'; // Sesuaikan enum db (failure/gagal)
+} else if ($transaction == 'expire') {
+    $status_db = 'kadaluarsa'; // Sesuaikan enum db (expire/kadaluarsa)
+} else if ($transaction == 'cancel') {
+    $status_db = 'dibatalkan'; // Sesuaikan enum db (cancel/dibatalkan)
 }
 
-// 5. Update Database
-// Asumsi tabel bernama 'transaksi' dan kolom order id bernama 'midtrans_order_id'
-// Sesuaikan query ini dengan nama tabel Anda di 'penjualan2.sql'
-$sql = "UPDATE transaksi SET status_pembayaran = ? WHERE midtrans_order_id = ?";
-$stmt = $conn->prepare($sql);
+// 3. LOGIKA UPDATE DATABASE
+// Update Status Pembayaran
+$koneksi->query("UPDATE transaksi SET status_pembayaran = '$status_db' WHERE uuid = '$uuid'");
 
-if ($stmt) {
-    $stmt->bind_param("ss", $status_transaksi, $order_id);
-    $execute = $stmt->execute();
-    $stmt->close();
 
-    if ($execute && $status_transaksi == 'dibayar') {
-        // --- LOGIKA REAL-TIME (SSE TRIGGER) ---
-        // Kita buat file sementara (.txt) yang berisi data notifikasi
-        // File ini akan dibaca oleh sse_channel.php
-        
-        $data_notif = [
+// A. JIKA SUKSES (SETTLEMENT)
+if ($status_db == 'settlement' && $status_sebelumnya != 'settlement') {
+    
+    // [FIX 1] Update uang_bayar agar laporan keuangan valid
+    // Kita isi uang_bayar sama dengan total_harga karena sudah lunas via sistem
+    $total_tagihan = $trx['total_harga'];
+    $koneksi->query("UPDATE transaksi SET 
+        status_pesanan = 'diproses', 
+        uang_bayar = '$total_tagihan' 
+        WHERE uuid = '$uuid'");
+
+    // Tambah Poin ke User
+    $uid = $trx['user_id'];
+    $poin = $trx['poin_didapat'];
+    if (!empty($uid) && $poin > 0) {
+        $koneksi->query("UPDATE users SET poin = poin + $poin WHERE id = '$uid'");
+    }
+
+    // Tulis Trigger untuk SSE (Agar layar kasir bunyi)
+    $data_sse = [
+        'payment_event' => [
             'order_id' => $order_id,
-            'status'   => 'dibayar',
-            'waktu'    => date('H:i:s'),
-            'pesan'    => 'Pesanan Baru Masuk: ' . $order_id
-        ];
-
-        // Simpan ke file di folder yang sama (pastikan permission folder writeable)
-        file_put_contents('sse_trigger.txt', json_encode($data_notif));
-
-        echo json_encode(['status' => 'success', 'message' => 'Status Updated & SSE Triggered']);
-    } else {
-        echo json_encode(['status' => 'ok', 'message' => 'Status Updated (Not Paid Yet)']);
-    }
-} else {
-    http_response_code(500);
-    echo json_encode(['status' => 'error', 'message' => 'Database Error: ' . $conn->error]);
+            'status' => 'settlement',
+            'pesan' => 'Pembayaran Diterima'
+        ]
+    ];
+    @file_put_contents('../../sse_trigger.txt', json_encode($data_sse));
 }
+
+// B. JIKA GAGAL / EXPIRED / CANCEL
+// [FIX 2] Kembalikan Stok (Restock) jika transaksi batal
+else if (in_array($status_db, ['gagal', 'kadaluarsa', 'dibatalkan']) && $status_sebelumnya == 'pending') {
+    
+    // Ambil detail item yang dipesan
+    $q_detail = $koneksi->query("SELECT menu_id, qty FROM transaksi_detail WHERE transaksi_id = '{$trx['id']}'");
+    
+    while($row = $q_detail->fetch_assoc()) {
+        $menu_id = $row['menu_id'];
+        $qty = $row['qty'];
+        
+        // Kembalikan stok ke menu
+        $koneksi->query("UPDATE menu SET stok = stok + $qty WHERE id = '$menu_id'");
+    }
+    
+    // Opsional: Update status pesanan jadi batal juga
+    $koneksi->query("UPDATE transaksi SET status_pesanan = 'dibatalkan' WHERE uuid = '$uuid'");
+}
+
+echo "OK - Status Updated to $status_db";
 ?>
