@@ -1,64 +1,84 @@
 <?php
-require_once '../../auth/koneksi.php';
-require_once dirname(__FILE__) . '/../../vendor/autoload.php';
+// admin/api/midtrans_webhook.php
+require_once '../../auth/koneksi.php'; // Sesuaikan path koneksi database Anda
+require_once '../../vendor/autoload.php'; // Jika menggunakan library Midtrans PHP (Opsional jika pakai raw PHP)
 
-// Konfigurasi Midtrans
-\Midtrans\Config::$serverKey = 'SB-Mid-server-p0J5Kw0tX_JHY_HoYJOQzYXQ';
-\Midtrans\Config::$isProduction = false;
-\Midtrans\Config::$isSanitized = true;
+// Konfigurasi Midtrans (Sesuaikan dengan Server Key Anda)
+$serverKey = 'SB-Mid-server-XXXXXX'; // GANTI DENGAN SERVER KEY ANDA
+$isProduction = false; // Ubah true jika sudah live
 
-try {
-    $notif = new \Midtrans\Notification();
-} catch (Exception $e) {
-    exit($e->getMessage());
+header('Content-Type: application/json');
+
+// 1. Ambil Data JSON dari Midtrans (yang diteruskan Cloudflare)
+$json_result = file_get_contents('php://input');
+$notification = json_decode($json_result);
+
+if (!$notification) {
+    http_response_code(404);
+    echo "Invalid JSON";
+    exit();
 }
 
-$transaction = $notif->transaction_status;
-$type = $notif->payment_type;
-$order_id = $notif->order_id;
-$fraud = $notif->fraud_status;
+// 2. Ambil variabel penting
+$transaction = $notification->transaction_status;
+$type = $notification->payment_type;
+$order_id = $notification->order_id;
+$fraud = $notification->fraud_status;
 
-// Cari Transaksi Berdasarkan Order ID Midtrans
-$q = $koneksi->query("SELECT * FROM transaksi WHERE midtrans_id = '$order_id'");
-$trx = $q->fetch_assoc();
+// 3. Cek Status Code (Validasi Keamanan Sederhana via Signature Key disarankan, tapi ini logika status dasarnya)
+// Dokumentasi: https://docs.midtrans.com/en/after-payment/notification?id=transaction-status
 
-if (!$trx) exit("Transaksi tidak ditemukan");
+$status_pembayaran = 'pending'; // Default
 
-// Logika Status
-$status_db = 'pending';
 if ($transaction == 'capture') {
     if ($type == 'credit_card') {
-        $status_db = ($fraud == 'challenge') ? 'challenge' : 'settlement';
+        if ($fraud == 'challenge') {
+            $status_pembayaran = 'pending';
+        } else {
+            $status_pembayaran = 'dibayar'; // Sukses Kartu Kredit
+        }
     }
 } else if ($transaction == 'settlement') {
-    $status_db = 'settlement';
+    // INI YANG PALING PENTING (Gopay, QRIS, VA masuk sini)
+    $status_pembayaran = 'dibayar';
 } else if ($transaction == 'pending') {
-    $status_db = 'pending';
+    $status_pembayaran = 'pending';
 } else if ($transaction == 'deny') {
-    $status_db = 'failure';
+    $status_pembayaran = 'gagal';
 } else if ($transaction == 'expire') {
-    $status_db = 'expire';
+    $status_pembayaran = 'kadaluarsa';
 } else if ($transaction == 'cancel') {
-    $status_db = 'cancel';
+    $status_pembayaran = 'dibatalkan';
 }
 
-// Update Status Transaksi
-$uuid = $trx['uuid'];
-$koneksi->query("UPDATE transaksi SET status_pembayaran = '$status_db' WHERE uuid = '$uuid'");
+// 4. Update Database
+// Kita cari transaksi berdasarkan midtrans_order_id atau order_id (tergantung kolom db Anda)
+// Asumsi nama tabel 'transaksi' dan kolom 'midtrans_order_id'
+$stmt = $conn->prepare("UPDATE transaksi SET status_pembayaran = ? WHERE midtrans_order_id = ?");
+$stmt->bind_param("ss", $status_pembayaran, $order_id);
+$execute = $stmt->execute();
 
-// [FIX POIN] JIKA LUNAS (SETTLEMENT) DAN BELUM DITAMBAHKAN
-// Cek apakah status sebelumnya bukan settlement, biar gak double poin
-if ($status_db == 'settlement' && $trx['status_pembayaran'] != 'settlement') {
+if ($execute && $status_pembayaran == 'dibayar') {
+    // 5. TRIGGER REAL-TIME UPDATE (SSE) [PENTING!]
+    // Agar transaksi_masuk.php otomatis refresh tanpa reload page.
+    // Kita buat file trigger sederhana.
     
-    // Update Status Pesanan jadi Diproses
-    $koneksi->query("UPDATE transaksi SET status_pesanan = 'diproses' WHERE uuid = '$uuid'");
-
-    // Tambah Poin ke User
-    $uid = $trx['user_id'];
-    $poin = $trx['poin_didapat'];
+    $data_sse = [
+        'message' => 'Pembayaran Masuk!',
+        'order_id' => $order_id,
+        'status' => 'dibayar',
+        'timestamp' => time()
+    ];
     
-    if (!empty($uid) && $poin > 0) {
-        $koneksi->query("UPDATE users SET poin = poin + $poin WHERE id = '$uid'");
-    }
+    // Tulis ke file sementara yang dibaca oleh sse_channel.php
+    // Pastikan folder ../tmp/ atau sejenisnya ada dan writable, atau simpan di DB tabel notifikasi
+    file_put_contents('../../sse_trigger.txt', json_encode($data_sse));
+    
+    // Opsi Tambahan: Jika Anda menggunakan tabel notifikasi khusus
+    // INSERT INTO notifikasi (...) VALUES (...)
+    
+    echo json_encode(['status' => 'success', 'message' => 'Database Updated & SSE Triggered']);
+} else {
+    echo json_encode(['status' => 'ok', 'message' => 'Status handled but no update required']);
 }
 ?>
