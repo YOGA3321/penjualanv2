@@ -1,84 +1,89 @@
 <?php
-// admin/api/midtrans_webhook.php
-require_once '../../auth/koneksi.php'; // Sesuaikan path koneksi database Anda
-require_once '../../vendor/autoload.php'; // Jika menggunakan library Midtrans PHP (Opsional jika pakai raw PHP)
+// Lokasi: admin/api/midtrans_webhook.php
 
-// Konfigurasi Midtrans (Sesuaikan dengan Server Key Anda)
-$serverKey = 'SB-Mid-server-XXXXXX'; // GANTI DENGAN SERVER KEY ANDA
-$isProduction = false; // Ubah true jika sudah live
+// 1. Load Koneksi Database
+// Sesuaikan path ini dengan struktur folder Anda
+require_once '../../auth/koneksi.php'; 
 
+// Jika menggunakan library Midtrans, load autoloader (opsional jika manual)
+// require_once dirname(__FILE__) . '/../../vendor/autoload.php';
+
+// Set Header agar response berupa JSON
 header('Content-Type: application/json');
 
-// 1. Ambil Data JSON dari Midtrans (yang diteruskan Cloudflare)
+// 2. Ambil Raw Body dari Cloudflare / Midtrans
 $json_result = file_get_contents('php://input');
 $notification = json_decode($json_result);
 
+// Validasi jika data kosong
 if (!$notification) {
     http_response_code(404);
-    echo "Invalid JSON";
+    echo json_encode(['status' => 'error', 'message' => 'Invalid JSON']);
     exit();
 }
 
-// 2. Ambil variabel penting
-$transaction = $notification->transaction_status;
-$type = $notification->payment_type;
-$order_id = $notification->order_id;
-$fraud = $notification->fraud_status;
+// 3. Ambil Data Penting
+$transaction_status = $notification->transaction_status;
+$payment_type       = $notification->payment_type;
+$order_id           = $notification->order_id;
+$fraud_status       = $notification->fraud_status;
 
-// 3. Cek Status Code (Validasi Keamanan Sederhana via Signature Key disarankan, tapi ini logika status dasarnya)
-// Dokumentasi: https://docs.midtrans.com/en/after-payment/notification?id=transaction-status
+// 4. Logika Penentuan Status Pembayaran
+$status_transaksi = 'pending';
 
-$status_pembayaran = 'pending'; // Default
-
-if ($transaction == 'capture') {
-    if ($type == 'credit_card') {
-        if ($fraud == 'challenge') {
-            $status_pembayaran = 'pending';
+if ($transaction_status == 'capture') {
+    if ($payment_type == 'credit_card') {
+        if ($fraud_status == 'challenge') {
+            $status_transaksi = 'pending';
         } else {
-            $status_pembayaran = 'dibayar'; // Sukses Kartu Kredit
+            $status_transaksi = 'dibayar';
         }
     }
-} else if ($transaction == 'settlement') {
-    // INI YANG PALING PENTING (Gopay, QRIS, VA masuk sini)
-    $status_pembayaran = 'dibayar';
-} else if ($transaction == 'pending') {
-    $status_pembayaran = 'pending';
-} else if ($transaction == 'deny') {
-    $status_pembayaran = 'gagal';
-} else if ($transaction == 'expire') {
-    $status_pembayaran = 'kadaluarsa';
-} else if ($transaction == 'cancel') {
-    $status_pembayaran = 'dibatalkan';
+} else if ($transaction_status == 'settlement') {
+    // Status Paling Penting: Uang sudah masuk (Gopay, VA, QRIS)
+    $status_transaksi = 'dibayar';
+} else if ($transaction_status == 'pending') {
+    $status_transaksi = 'pending';
+} else if ($transaction_status == 'deny') {
+    $status_transaksi = 'gagal';
+} else if ($transaction_status == 'expire') {
+    $status_transaksi = 'kadaluarsa';
+} else if ($transaction_status == 'cancel') {
+    $status_transaksi = 'dibatalkan';
 }
 
-// 4. Update Database
-// Kita cari transaksi berdasarkan midtrans_order_id atau order_id (tergantung kolom db Anda)
-// Asumsi nama tabel 'transaksi' dan kolom 'midtrans_order_id'
-$stmt = $conn->prepare("UPDATE transaksi SET status_pembayaran = ? WHERE midtrans_order_id = ?");
-$stmt->bind_param("ss", $status_pembayaran, $order_id);
-$execute = $stmt->execute();
+// 5. Update Database
+// Asumsi tabel bernama 'transaksi' dan kolom order id bernama 'midtrans_order_id'
+// Sesuaikan query ini dengan nama tabel Anda di 'penjualan2.sql'
+$sql = "UPDATE transaksi SET status_pembayaran = ? WHERE midtrans_order_id = ?";
+$stmt = $conn->prepare($sql);
 
-if ($execute && $status_pembayaran == 'dibayar') {
-    // 5. TRIGGER REAL-TIME UPDATE (SSE) [PENTING!]
-    // Agar transaksi_masuk.php otomatis refresh tanpa reload page.
-    // Kita buat file trigger sederhana.
-    
-    $data_sse = [
-        'message' => 'Pembayaran Masuk!',
-        'order_id' => $order_id,
-        'status' => 'dibayar',
-        'timestamp' => time()
-    ];
-    
-    // Tulis ke file sementara yang dibaca oleh sse_channel.php
-    // Pastikan folder ../tmp/ atau sejenisnya ada dan writable, atau simpan di DB tabel notifikasi
-    file_put_contents('../../sse_trigger.txt', json_encode($data_sse));
-    
-    // Opsi Tambahan: Jika Anda menggunakan tabel notifikasi khusus
-    // INSERT INTO notifikasi (...) VALUES (...)
-    
-    echo json_encode(['status' => 'success', 'message' => 'Database Updated & SSE Triggered']);
+if ($stmt) {
+    $stmt->bind_param("ss", $status_transaksi, $order_id);
+    $execute = $stmt->execute();
+    $stmt->close();
+
+    if ($execute && $status_transaksi == 'dibayar') {
+        // --- LOGIKA REAL-TIME (SSE TRIGGER) ---
+        // Kita buat file sementara (.txt) yang berisi data notifikasi
+        // File ini akan dibaca oleh sse_channel.php
+        
+        $data_notif = [
+            'order_id' => $order_id,
+            'status'   => 'dibayar',
+            'waktu'    => date('H:i:s'),
+            'pesan'    => 'Pesanan Baru Masuk: ' . $order_id
+        ];
+
+        // Simpan ke file di folder yang sama (pastikan permission folder writeable)
+        file_put_contents('sse_trigger.txt', json_encode($data_notif));
+
+        echo json_encode(['status' => 'success', 'message' => 'Status Updated & SSE Triggered']);
+    } else {
+        echo json_encode(['status' => 'ok', 'message' => 'Status Updated (Not Paid Yet)']);
+    }
 } else {
-    echo json_encode(['status' => 'ok', 'message' => 'Status handled but no update required']);
+    http_response_code(500);
+    echo json_encode(['status' => 'error', 'message' => 'Database Error: ' . $conn->error]);
 }
 ?>

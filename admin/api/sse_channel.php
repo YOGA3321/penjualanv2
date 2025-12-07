@@ -18,7 +18,7 @@ ob_implicit_flush(1);
 $filter_cabang = $_GET['cabang_id'] ?? ''; 
 if($filter_cabang == 'pusat') $filter_cabang = '';
 
-// Update status user yang sedang request (Admin/Karyawan)
+// Update status user yang sedang request
 if(isset($_SESSION['user_id'])) {
     $uid = $_SESSION['user_id'];
     $koneksi->query("UPDATE users SET last_active = NOW() WHERE id = '$uid'");
@@ -29,33 +29,30 @@ session_write_close();
 echo ":" . str_repeat(" ", 2048) . "\n\n";
 flush();
 
+// --- SETUP FILE TRIGGER PEMBAYARAN ---
+$trigger_file = '../../sse_trigger.txt'; 
+$last_trigger_time = file_exists($trigger_file) ? filemtime($trigger_file) : 0;
+// -------------------------------------
+
 $start = time();
 
 while (true) {
     if ((time() - $start) > 40) die(); 
 
-    // 3. HITUNG USER ONLINE (STAFF ONLY)
-    $time_limit = date('Y-m-d H:i:s', time() - 120); // Aktif 2 menit terakhir
+    $response_data = [];
+
+    // --- FITUR A: HITUNG USER ONLINE ---
+    $time_limit = date('Y-m-d H:i:s', time() - 120); 
+    $sql = "SELECT COUNT(*) as online FROM users WHERE last_active > '$time_limit' AND level IN ('admin', 'karyawan')"; 
     
-    // [FIX] Tambahkan Filter: Hanya Admin & Karyawan (Pelanggan jangan dihitung)
-    $sql = "SELECT COUNT(*) as online FROM users 
-            WHERE last_active > '$time_limit' 
-            AND level IN ('admin', 'karyawan')"; 
-    
-    // Filter Cabang (Jika sedang melihat cabang tertentu)
     if (!empty($filter_cabang)) {
-        // Hitung Karyawan di cabang itu + Admin (Omnipresent)
         $sql .= " AND (cabang_id = '$filter_cabang' OR level = 'admin')";
     }
 
     $res = $koneksi->query($sql);
-    $online = 0;
-    if($res) {
-        $row = $res->fetch_assoc();
-        $online = $row['online'];
-    }
+    $response_data['online_users'] = ($res) ? $res->fetch_assoc()['online'] : 0;
 
-    // 4. CEK NOTIFIKASI RESERVASI
+    // --- FITUR B: CEK NOTIFIKASI RESERVASI ---
     $now = date('Y-m-d H:i:s');
     $h_plus_15 = date('Y-m-d H:i:s', time() + (15 * 60));
     
@@ -78,12 +75,28 @@ while (true) {
             $alerts[] = "⚠️ Meja {$r['nomor_meja']} dipesan {$r['nama_pelanggan']} pukul $jam";
         }
     }
+    $response_data['reservasi_alert'] = $alerts;
 
-    // Kirim Data
-    echo "data: " . json_encode(['online_users' => $online, 'reservasi_alert' => $alerts]) . "\n\n";
+    // --- FITUR C: DETEKSI PEMBAYARAN MASUK (WEBHOOK) ---
+    clearstatcache();
+    if (file_exists($trigger_file)) {
+        $current_file_time = filemtime($trigger_file);
+        if ($current_file_time > $last_trigger_time) {
+            $last_trigger_time = $current_file_time;
+            
+            // Baca isi file trigger
+            $trigger_content = file_get_contents($trigger_file);
+            $response_data['payment_event'] = json_decode($trigger_content);
+        }
+    }
+
+    // Kirim Data JSON
+    echo "data: " . json_encode($response_data) . "\n\n";
     flush();
     
     if (connection_aborted()) break;
-    sleep(5);
+    
+    // Interval lebih cepat (3 detik) agar notifikasi pembayaran terasa responsif
+    sleep(3); 
 }
 ?>

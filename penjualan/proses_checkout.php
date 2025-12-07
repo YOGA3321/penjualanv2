@@ -127,8 +127,11 @@ if ($metode == 'midtrans') {
     \Midtrans\Config::$isSanitized = true;
     \Midtrans\Config::$is3ds = true;
 
+    // --- PERBAIKAN DI SINI ---
+    // Prefix diubah menjadi 'RESTO-' agar ditangkap Cloudflare Worker
     $kode_unik = date('ymd') . rand(100, 999); 
-    $midtrans_order_id = "PENJUALAN-" . $kode_unik; 
+    $midtrans_order_id = "RESTO-" . $kode_unik; 
+    // -------------------------
 
     $params = [
         'transaction_details' => ['order_id' => $midtrans_order_id, 'gross_amount' => $total_akhir_server],
@@ -145,24 +148,21 @@ if ($metode == 'midtrans') {
 }
 
 // Insert Transaksi
-// [FIX] Jumlah '?' ada 12, bind_param juga harus 12
 $stmt = $koneksi->prepare("INSERT INTO transaksi (uuid, meja_id, nama_pelanggan, total_harga, uang_bayar, kembalian, status_pembayaran, metode_pembayaran, status_pesanan, snap_token, midtrans_id, kode_voucher, diskon, poin_didapat, user_id) VALUES (?, ?, ?, ?, 0, 0, 'pending', ?, ?, ?, ?, ?, ?, ?, ?)");
 
-// [FIX] String tipe data disesuaikan: sissssssssdii (13 karakter -> 12 variabel = Error)
-// KITA UBAH JADI: "sisssssssdii" (12 karakter untuk 12 variabel)
 $stmt->bind_param("sisssssssdii", 
-    $uuid,                  // s
-    $meja_id,               // i
-    $nama,                  // s
-    $total_akhir_server,    // s (atau d)
-    $metode,                // s
-    $status_pesanan,        // s
-    $snap_token,            // s
-    $midtrans_order_id,     // s
-    $kode_voucher,          // s
-    $diskon_real,           // d
-    $poin_dapat,            // i
-    $user_id_db             // i
+    $uuid,                  
+    $meja_id,               
+    $nama,                  
+    $total_akhir_server,    
+    $metode,                
+    $status_pesanan,        
+    $snap_token,            
+    $midtrans_order_id,     
+    $kode_voucher,          
+    $diskon_real,           
+    $poin_dapat,            
+    $user_id_db             
 );
 
 if ($stmt->execute()) {
