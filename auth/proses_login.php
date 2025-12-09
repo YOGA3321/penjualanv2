@@ -58,6 +58,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 elseif ($user['level'] == 'karyawan') {
                     $redirect = '../admin/transaksi_masuk.php'; 
                 } 
+                elseif ($user['level'] == 'gudang') {
+                    $redirect = '../gudang/index.php';
+                }
                 else {
                     $redirect = '../pelanggan/index.php';
                 }

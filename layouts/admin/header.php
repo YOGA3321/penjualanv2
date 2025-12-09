@@ -62,36 +62,50 @@ if(isset($_SESSION['level'])) {
                 <li class="<?= $active_menu == 'dashboard' ? 'active' : '' ?>">
                     <a href="index" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-tachometer-alt fa-fw me-2"></i> Dashboard</a>
                 </li>
-                <li class="<?= $active_menu == 'laporan' ? 'active' : '' ?>">
-                    <a href="laporan" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-chart-line fa-fw me-2"></i> Laporan</a>
-                </li>
-                <li class="<?= $active_menu == 'riwayat' ? 'active' : '' ?>">
-                    <a href="riwayat" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-history fa-fw me-2"></i> Riwayat Transaksi</a>
-                </li>
-                <li class="<?= $active_menu == 'menu' ? 'active' : '' ?>">
-                    <a href="menu" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-utensils fa-fw me-2"></i> Manajemen Menu</a>
-                </li>
-                
-                <li class="<?= $active_menu == 'reservasi' ? 'active' : '' ?>">
-                    <a href="reservasi" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-calendar-alt fa-fw me-2"></i> Data Reservasi</a>
-                </li>
 
-                <?php if(isset($_SESSION['level']) && $_SESSION['level'] == 'admin'): ?>
-                    <li class="<?= $active_menu == 'kategori' ? 'active' : '' ?>">
-                        <a href="kategori" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-tags fa-fw me-2"></i> Kategori Menu</a>
+                <?php if(isset($_SESSION['level']) && $_SESSION['level'] == 'gudang'): ?>
+                    <!-- MENU KHUSUS GUDANG -->
+                    <li class="<?= $active_menu == 'inventory' ? 'active' : '' ?>">
+                        <a href="inventory.php" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-boxes fa-fw me-2"></i> Manajemen Stok</a>
                     </li>
-                    <li class="<?= $active_menu == 'voucher' ? 'active' : '' ?>">
-                        <a href="voucher" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-ticket-alt fa-fw me-2"></i> Manajemen Voucher</a>
+                    <li class="<?= $active_menu == 'permintaan' ? 'active' : '' ?>">
+                        <a href="permintaan_masuk.php" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-inbox fa-fw me-2"></i> Permintaan Masuk</a>
                     </li>
-                    <li class="<?= $active_menu == 'users' ? 'active' : '' ?>">
-                        <a href="users" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-users-cog fa-fw me-2"></i> Manajemen User</a>
+                
+                <?php else: // ADMIN & LAINNYA ?>
+                    
+                    <li class="<?= $active_menu == 'laporan' ? 'active' : '' ?>">
+                        <a href="laporan" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-chart-line fa-fw me-2"></i> Laporan</a>
                     </li>
-                    <li class="<?= $active_menu == 'cabang' ? 'active' : '' ?>">
-                        <a href="cabang" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-store-alt fa-fw me-2"></i> Manajemen Cabang</a>
+                    <li class="<?= $active_menu == 'riwayat' ? 'active' : '' ?>">
+                        <a href="riwayat" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-history fa-fw me-2"></i> Riwayat Transaksi</a>
                     </li>
+                    <li class="<?= $active_menu == 'menu' ? 'active' : '' ?>">
+                        <a href="menu" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-utensils fa-fw me-2"></i> Manajemen Menu</a>
+                    </li>
+                    
+                    <li class="<?= $active_menu == 'reservasi' ? 'active' : '' ?>">
+                        <a href="reservasi" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-calendar-alt fa-fw me-2"></i> Data Reservasi</a>
+                    </li>
+
+                    <?php if(isset($_SESSION['level']) && $_SESSION['level'] == 'admin'): ?>
+                        <li class="<?= $active_menu == 'kategori' ? 'active' : '' ?>">
+                            <a href="kategori" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-tags fa-fw me-2"></i> Kategori Menu</a>
+                        </li>
+                        <li class="<?= $active_menu == 'voucher' ? 'active' : '' ?>">
+                            <a href="voucher" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-ticket-alt fa-fw me-2"></i> Manajemen Voucher</a>
+                        </li>
+                        <li class="<?= $active_menu == 'users' ? 'active' : '' ?>">
+                            <a href="users" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-users-cog fa-fw me-2"></i> Manajemen User</a>
+                        </li>
+                        <li class="<?= $active_menu == 'cabang' ? 'active' : '' ?>">
+                            <a href="cabang" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-store-alt fa-fw me-2"></i> Manajemen Cabang</a>
+                        </li>
+                    <?php endif; ?>
                 <?php endif; ?>
             </ul>
 
+            <?php if(!isset($_SESSION['level']) || $_SESSION['level'] != 'gudang'): ?>
             <p class="sidebar-heading px-4 text-muted small fw-bold text-uppercase mt-4 mb-2">Operasional</p>
             <ul class="list-unstyled">
                 <li class="<?= $active_menu == 'transaksi_masuk' ? 'active' : '' ?>">
@@ -106,7 +120,18 @@ if(isset($_SESSION['level'])) {
                 <li class="<?= $active_menu == 'meja' ? 'active' : '' ?>">
                     <a href="meja" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-chair fa-fw me-2"></i> Manajemen Meja</a>
                 </li>
+                
+                <?php if(isset($_SESSION['level']) && $_SESSION['level'] == 'admin'): ?>
+                <p class="sidebar-heading px-4 text-muted small fw-bold text-uppercase mt-4 mb-2">Logistik / Gudang</p>
+                <li class="<?= $active_menu == 'request_stok' ? 'active' : '' ?>">
+                    <a href="request_stok.php" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-box-open fa-fw me-2"></i> Request Stok</a>
+                </li>
+                <li class="<?= $active_menu == 'penerimaan_barang' ? 'active' : '' ?>">
+                    <a href="penerimaan_barang.php" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-clipboard-check fa-fw me-2"></i> Penerimaan Barang</a>
+                </li>
+                <?php endif; ?>
             </ul>
+            <?php endif; ?>
         </nav>
 
         <div class="sidebar-footer">

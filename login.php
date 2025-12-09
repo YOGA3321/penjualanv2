@@ -4,6 +4,8 @@ session_start();
 if (isset($_SESSION['user_id'])) {
     if ($_SESSION['level'] == 'admin' || $_SESSION['level'] == 'karyawan') {
         header("Location: admin/");
+    } elseif ($_SESSION['level'] == 'gudang') {
+        header("Location: gudang/");
     } else {
         header("Location: penjualan/");
     }
