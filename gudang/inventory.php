@@ -1,6 +1,6 @@
 <?php
 session_start();
-if (!isset($_SESSION['user_id']) || $_SESSION['level'] != 'gudang') { header("Location: ../login.php"); exit; }
+if (!isset($_SESSION['user_id']) || ($_SESSION['level'] != 'gudang' && $_SESSION['level'] != 'admin')) { header("Location: ../login.php"); exit; }
 require_once '../auth/koneksi.php';
 
 $page_title = "Manajemen Stok Gudang";

@@ -3,7 +3,7 @@
 date_default_timezone_set('Asia/Jakarta');
 
 // --- 1. DETEKSI ENVIRONMENT (LOKAL VS LIVE) ---
-$whitelist = array('127.0.0.1', '::1', 'localhost');
+$whitelist = array('::1', 'localhost', '192.168.0.192');
 $is_localhost = false;
 if (in_array($_SERVER['REMOTE_ADDR'], $whitelist) || strpos($_SERVER['HTTP_HOST'], 'localhost') !== false || strpos($_SERVER['HTTP_HOST'], '192.168.') !== false) {
     $is_localhost = true;
