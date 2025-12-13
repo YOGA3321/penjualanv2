@@ -90,13 +90,21 @@ $is_karyawan = (isset($_SESSION['level']) && $_SESSION['level'] == 'karyawan');
         const statusDot = document.getElementById('statusIndicator');
         const onlineCount = document.getElementById('onlineCount');
 
-        globalEventSource = new EventSource('api/sse_channel.php?cabang_id=<?= $sse_cabang ?>');
+        // Detect Module
+        const isGudang = window.location.href.includes('/gudang');
+        const moduleParam = isGudang ? 'gudang' : 'admin';
+
+        globalEventSource = new EventSource('api/sse_channel?cabang_id=<?= $sse_cabang ?>&module=' + moduleParam);
 
         globalEventSource.onmessage = function(event) {
             const data = JSON.parse(event.data);
             if(onlineCount) {
                 onlineCount.innerText = data.online_users;
             }
+
+            // Dispatch System Event for Page-Specific Logic (e.g. Gudang)
+            window.dispatchEvent(new CustomEvent('sse-data', { detail: data }));
+
             // Add Green Indicator when data flows
             if(statusDot) {
                 statusDot.classList.remove('bg-secondary');

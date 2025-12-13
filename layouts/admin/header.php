@@ -6,7 +6,7 @@ $timeout_duration = 3600;
 if (isset($_SESSION['LAST_ACTIVITY']) && (time() - $_SESSION['LAST_ACTIVITY']) > $timeout_duration) {
     session_unset();
     session_destroy();
-    header("Location: ../login.php?msg=timeout");
+    header("Location: ../login?msg=timeout");
     exit;
 }
 $_SESSION['LAST_ACTIVITY'] = time();
@@ -46,21 +46,6 @@ if(isset($_SESSION['level'])) {
     <link rel="shortcut icon" href="../assets/images/pngkey.com-food-network-logo-png-430444.png" type="image/x-icon">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     
-    <!-- PWA & SPA (Turbo) -->
-    <link rel="manifest" href="/penjualanv2/manifest.json">
-    <script type="module">
-        import hotwiredTurbo from 'https://cdn.skypack.dev/@hotwired/turbo';
-    </script>
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/penjualanv2/service-worker.js')
-                .then(reg => console.log('SW Registered!', reg.scope))
-                .catch(err => console.log('SW Fail:', err));
-            });
-        }
-    </script>
-
     <style>
         .dashboard-wrapper { display: flex; height: 100vh; overflow: hidden; }
         .sidebar { width: 260px; height: 100vh; display: flex; flex-direction: column; background-color: #fff; border-right: 1px solid #e9ecef; z-index: 1040; flex-shrink: 0; }
@@ -102,51 +87,51 @@ if(isset($_SESSION['level'])) {
                 <?php if($show_gudang_menu): ?>
                     <!-- === MENU GUDANG (Admin & Gudang) === -->
                     <li class="<?= $active_menu == 'dashboard' ? 'active' : '' ?>">
-                        <a href="../gudang/index.php" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-tachometer-alt fa-fw me-2"></i> Dashboard</a>
+                        <a href="../gudang/" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-tachometer-alt fa-fw me-2"></i> Dashboard</a>
                     </li>
                     <li class="<?= $active_menu == 'inventory' ? 'active' : '' ?>">
-                        <a href="../gudang/inventory.php" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-boxes fa-fw me-2"></i> Manajemen Stok</a>
+                        <a href="../gudang/inventory" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-boxes fa-fw me-2"></i> Manajemen Stok</a>
                     </li>
                     <li class="<?= $active_menu == 'barang_masuk' ? 'active' : '' ?>">
-                        <a href="../gudang/barang_masuk.php" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-download fa-fw me-2"></i> Barang Masuk</a>
+                        <a href="../gudang/barang_masuk" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-download fa-fw me-2"></i> Barang Masuk</a>
                     </li>
                     <li class="<?= $active_menu == 'permintaan' ? 'active' : '' ?>">
-                        <a href="../gudang/permintaan_masuk.php" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-inbox fa-fw me-2"></i> Permintaan Masuk</a>
+                        <a href="../gudang/permintaan_masuk" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-inbox fa-fw me-2"></i> Permintaan Masuk</a>
                     </li>
                     <li class="<?= $active_menu == 'pemasok' ? 'active' : '' ?>">
-                        <a href="../gudang/pemasok.php" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-truck fa-fw me-2"></i> Data Pemasok</a>
+                        <a href="../gudang/pemasok" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-truck fa-fw me-2"></i> Data Pemasok</a>
                     </li>
 
                 <?php else: ?>
                     <!-- === MENU UTAMA ADMIN / KARYAWAN === -->
                     <li class="<?= $active_menu == 'dashboard' ? 'active' : '' ?>">
-                        <a href="../admin/index.php" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-tachometer-alt fa-fw me-2"></i> Dashboard</a>
+                        <a href="../admin/" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-tachometer-alt fa-fw me-2"></i> Dashboard</a>
                     </li>
                     <li class="<?= $active_menu == 'laporan' ? 'active' : '' ?>">
-                        <a href="../admin/laporan.php" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-chart-line fa-fw me-2"></i> Laporan</a>
+                        <a href="../admin/laporan" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-chart-line fa-fw me-2"></i> Laporan</a>
                     </li>
                     <li class="<?= $active_menu == 'riwayat' ? 'active' : '' ?>">
-                        <a href="../admin/riwayat.php" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-history fa-fw me-2"></i> Riwayat Transaksi</a>
+                        <a href="../admin/riwayat" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-history fa-fw me-2"></i> Riwayat Transaksi</a>
                     </li>
                     <li class="<?= $active_menu == 'menu' ? 'active' : '' ?>">
-                        <a href="../admin/menu.php" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-utensils fa-fw me-2"></i> Manajemen Menu</a>
+                        <a href="../admin/menu" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-utensils fa-fw me-2"></i> Manajemen Menu</a>
                     </li>
                     <li class="<?= $active_menu == 'reservasi' ? 'active' : '' ?>">
-                        <a href="../admin/reservasi.php" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-calendar-alt fa-fw me-2"></i> Data Reservasi</a>
+                        <a href="../admin/reservasi" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-calendar-alt fa-fw me-2"></i> Data Reservasi</a>
                     </li>
 
                     <?php if($user_level == 'admin'): ?>
                         <li class="<?= $active_menu == 'kategori' ? 'active' : '' ?>">
-                            <a href="../admin/kategori.php" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-tags fa-fw me-2"></i> Kategori Menu</a>
+                            <a href="../admin/kategori" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-tags fa-fw me-2"></i> Kategori Menu</a>
                         </li>
                         <li class="<?= $active_menu == 'voucher' ? 'active' : '' ?>">
-                            <a href="../admin/voucher.php" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-ticket-alt fa-fw me-2"></i> Manajemen Voucher</a>
+                            <a href="../admin/voucher" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-ticket-alt fa-fw me-2"></i> Manajemen Voucher</a>
                         </li>
                         <li class="<?= $active_menu == 'users' ? 'active' : '' ?>">
-                            <a href="../admin/users.php" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-users-cog fa-fw me-2"></i> Manajemen User</a>
+                            <a href="../admin/users" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-users-cog fa-fw me-2"></i> Manajemen User</a>
                         </li>
                         <li class="<?= $active_menu == 'cabang' ? 'active' : '' ?>">
-                            <a href="../admin/cabang.php" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-store-alt fa-fw me-2"></i> Manajemen Cabang</a>
+                            <a href="../admin/cabang" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-store-alt fa-fw me-2"></i> Manajemen Cabang</a>
                         </li>
                     <?php endif; ?>
                 <?php endif; ?>
@@ -156,25 +141,25 @@ if(isset($_SESSION['level'])) {
             <p class="sidebar-heading px-4 text-muted small fw-bold text-uppercase mt-4 mb-2">Operasional</p>
             <ul class="list-unstyled">
                 <li class="<?= $active_menu == 'transaksi_masuk' ? 'active' : '' ?>">
-                    <a href="../admin/transaksi_masuk.php" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-bell fa-fw me-2"></i> Pesanan Masuk</a>
+                    <a href="../admin/transaksi_masuk" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-bell fa-fw me-2"></i> Pesanan Masuk</a>
                 </li>
                 <li class="<?= $active_menu == 'order_manual' ? 'active' : '' ?>">
-                    <a href="../admin/order_manual.php" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-tablet-alt fa-fw me-2"></i> Pesanan Manual</a>
+                    <a href="../admin/order_manual" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-tablet-alt fa-fw me-2"></i> Pesanan Manual</a>
                 </li>
                 <li class="<?= $active_menu == 'dapur' ? 'active' : '' ?>">
-                    <a href="../admin/dapur.php" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-fire fa-fw me-2"></i> Monitor Dapur</a>
+                    <a href="../admin/dapur" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-fire fa-fw me-2"></i> Monitor Dapur</a>
                 </li>
                 <li class="<?= $active_menu == 'meja' ? 'active' : '' ?>">
-                    <a href="../admin/meja.php" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-chair fa-fw me-2"></i> Manajemen Meja</a>
+                    <a href="../admin/meja" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-chair fa-fw me-2"></i> Manajemen Meja</a>
                 </li>
                 
                 <?php if($user_level == 'admin'): ?>
                 <p class="sidebar-heading px-4 text-muted small fw-bold text-uppercase mt-4 mb-2">Logistik / Gudang</p>
                 <li class="<?= $active_menu == 'request_stok' ? 'active' : '' ?>">
-                    <a href="../admin/request_stok.php" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-box-open fa-fw me-2"></i> Request Stok</a>
+                    <a href="../admin/request_stok" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-box-open fa-fw me-2"></i> Request Stok</a>
                 </li>
                 <li class="<?= $active_menu == 'penerimaan_barang' ? 'active' : '' ?>">
-                    <a href="../admin/penerimaan_barang.php" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-clipboard-check fa-fw me-2"></i> Penerimaan Barang</a>
+                    <a href="../admin/penerimaan_barang" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-clipboard-check fa-fw me-2"></i> Penerimaan Barang</a>
                 </li>
                 <?php endif; ?>
             </ul>
@@ -182,7 +167,7 @@ if(isset($_SESSION['level'])) {
         </nav>
         
         <div class="sidebar-footer">
-            <a href="../logout.php" class="text-decoration-none text-danger fw-bold"><i class="fas fa-sign-out-alt fa-fw me-2"></i> Logout</a>
+            <a href="../logout" class="text-decoration-none text-danger fw-bold"><i class="fas fa-sign-out-alt fa-fw me-2"></i> Logout</a>
         </div>
     </aside>
 
@@ -204,7 +189,7 @@ if(isset($_SESSION['level'])) {
                         // Deteksi URL saat ini untuk menentukan tombol switch
                         $current_url = $_SERVER['REQUEST_URI'];
                         $is_gudang = strpos($current_url, '/gudang/') !== false;
-                        $target_url = $is_gudang ? '../admin/index.php' : '../gudang/index.php';
+                        $target_url = $is_gudang ? '../admin/' : '../gudang/';
                         $btn_text = $is_gudang ? 'Switch ke Admin' : 'Switch ke Gudang';
                         $btn_class = $is_gudang ? 'btn-outline-primary' : 'btn-outline-secondary';
                     ?>
@@ -238,7 +223,7 @@ if(isset($_SESSION['level'])) {
                         <script>
                         function toggleToko(id, msg) {
                             Swal.fire({ title: 'Ubah Status?', text: msg, icon: 'question', showCancelButton: true, confirmButtonText: 'Ya, Ubah' })
-                            .then((r) => { if (r.isConfirmed) window.location.href = 'toggle_toko.php?id=' + id; });
+                            .then((r) => { if (r.isConfirmed) window.location.href = 'toggle_toko?id=' + id; });
                         }
                         </script>
                     <?php else: ?>
@@ -253,7 +238,7 @@ if(isset($_SESSION['level'])) {
                         $list_cabang = $koneksi->query("SELECT * FROM cabang");
                         $current_view = $_SESSION['view_cabang_id'] ?? 'pusat';
                     ?>
-                    <form action="setter_cabang.php" method="POST">
+                    <form action="setter_cabang" method="POST">
                         <div class="input-group input-group-sm">
                             <span class="input-group-text bg-white border-end-0"><i class="fas fa-filter text-primary"></i></span>
                             <select name="cabang_tujuan" class="form-select border-start-0 fw-bold text-primary" onchange="this.form.submit()" style="cursor:pointer;">
@@ -286,7 +271,7 @@ if(isset($_SESSION['level'])) {
                                     $is_gudang = strpos($current_url, '/gudang/') !== false;
                                 ?>
                                 <li>
-                                    <a class="dropdown-item fw-bold text-success" href="<?= $is_gudang ? '../admin/index.php' : '../gudang/index.php' ?>">
+                                    <a class="dropdown-item fw-bold text-success" href="<?= $is_gudang ? '../admin/' : '../gudang/' ?>">
                                         <i class="fas fa-exchange-alt me-2"></i> 
                                         <?= $is_gudang ? 'Ke Mode Admin' : 'Ke Mode Gudang' ?>
                                     </a>
@@ -294,7 +279,7 @@ if(isset($_SESSION['level'])) {
                                 <li><hr class="dropdown-divider"></li>
                             <?php endif; ?>
 
-                            <li><a class="dropdown-item" href="profil.php"><i class="fas fa-user-edit me-2 text-muted"></i> Edit Profil</a></li>
+                            <li><a class="dropdown-item" href="profil"><i class="fas fa-user-edit me-2 text-muted"></i> Edit Profil</a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item text-danger fw-bold" href="../logout"><i class="fas fa-sign-out-alt me-2"></i> Logout</a></li>
                         </ul>

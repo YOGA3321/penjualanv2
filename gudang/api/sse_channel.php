@@ -15,9 +15,14 @@ while (ob_get_level() > 0) { ob_end_flush(); }
 ob_implicit_flush(1);
 
 // Update status user active
+$current_module = $_GET['module'] ?? 'unknown';
+
 if(isset($_SESSION['user_id'])) {
     $uid = $_SESSION['user_id'];
-    $koneksi->query("UPDATE users SET last_active = NOW() WHERE id = '$uid'");
+    // Update last_active AND last_module
+    $stmt = $koneksi->prepare("UPDATE users SET last_active = NOW(), last_module = ? WHERE id = ?");
+    $stmt->bind_param("si", $current_module, $uid);
+    $stmt->execute();
 }
 
 session_write_close();
@@ -36,9 +41,16 @@ while (true) {
 
     // --- FITUR A: HITUNG USER ONLINE (System Live - WAREHOUSE CONTEXT) ---
     $time_limit = date('Y-m-d H:i:s', time() - 120); 
-    // User Guide: "berbeda dari global". Kita hitung admin & gudang saja, atau hanya yang sedang aktif di modul gudang?
-    // Amannya: Admin + Gudang Users. Karyawan (kasir/dapur) tidak perlu dihitung di sini agar "beda".
-    $sql_online = "SELECT COUNT(*) as online FROM users WHERE last_active > '$time_limit' AND level IN ('admin', 'gudang')"; 
+    
+    // Logic count per module
+    $sql_online = "SELECT COUNT(*) as online FROM users WHERE last_active > '$time_limit'";
+    
+    if ($current_module == 'gudang') {
+         $sql_online .= " AND last_module = 'gudang'";
+    } elseif ($current_module == 'admin') {
+         $sql_online .= " AND last_module = 'admin'";
+    }
+    
     $res = $koneksi->query($sql_online);
     $response_data['online_users'] = ($res) ? $res->fetch_assoc()['online'] : 0;
 

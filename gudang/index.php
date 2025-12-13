@@ -138,59 +138,37 @@ new Chart(ctx, {
     options: { responsive: true, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
 });
 
-// 2. SSE Notifications
-if(typeof(EventSource) !== "undefined") {
-const source = new EventSource("api/sse_channel.php");
-    
-    source.onmessage = function(event) {
-        const data = JSON.parse(event.data);
+// 2. SSE Notifications (Via Global Footer Connection)
+window.addEventListener('sse-data', (e) => {
+    const data = e.detail;
+
+    // 1. Update Request Pending Counter
+    if(data.pending_requests !== undefined) {
+        const elPending = document.getElementById("count-pending");
+        if(elPending) elPending.innerText = data.pending_requests + " Request";
+    }
+
+    // 2. Notifikasi Request Baru (PENTING!)
+    if(data.new_request_alert) {
+            Swal.fire({
+            title: data.new_request_alert.title,
+            text: data.new_request_alert.message,
+            icon: 'info',
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 6000,
+            timerProgressBar: true,
+            didOpen: (toast) => {
+                toast.addEventListener('mouseenter', Swal.stopTimer)
+                toast.addEventListener('mouseleave', Swal.resumeTimer)
+            }
+        });
         
-        // 1. Update System Live (Online Users) - HANDLED BY FOOTER GLOBAL SSE
-        // if(data.online_users !== undefined) {
-        //      const el = document.getElementById('onlineCount');
-        //      if(el) el.innerText = data.online_users;
-        // }
-
-        // 2. Update Request Pending Counter
-        if(data.pending_requests !== undefined) {
-            const elPending = document.getElementById("count-pending");
-            if(elPending) elPending.innerText = data.pending_requests + " Request";
-        }
-
-        // 3. Notifikasi Request Baru (PENTING!)
-        if(data.new_request_alert) {
-             Swal.fire({
-                title: data.new_request_alert.title,
-                text: data.new_request_alert.message,
-                icon: 'info',
-                toast: true,
-                position: 'top-end',
-                showConfirmButton: false,
-                timer: 6000,
-                timerProgressBar: true,
-                didOpen: (toast) => {
-                    toast.addEventListener('mouseenter', Swal.stopTimer)
-                    toast.addEventListener('mouseleave', Swal.resumeTimer)
-                }
-            });
-            
-            // Optional: Play notification sound
-            // new Audio('../assets/audio/notification.mp3').play().catch(e=>{});
-        }
-    };
-
-    source.onerror = function() {
-        document.getElementById("sse-status").className = "badge bg-warning text-dark";
-        document.getElementById("sse-status").innerText = "Reconnecting...";
-    };
-
-    source.onopen = function() {
-        document.getElementById("sse-status").className = "badge bg-success";
-        document.getElementById("sse-status").innerText = "Live";
-    };
-} else {
-    console.log("Browser does not support SSE.");
-}
+        // Optional: Play notification sound
+        // new Audio('../assets/audio/notification.mp3').play().catch(e=>{});
+    }
+});
 </script>
 
 <?php include '../layouts/admin/footer.php'; ?>

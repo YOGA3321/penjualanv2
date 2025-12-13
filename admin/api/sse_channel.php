@@ -18,10 +18,19 @@ ob_implicit_flush(1);
 $filter_cabang = $_GET['cabang_id'] ?? ''; 
 if($filter_cabang == 'pusat') $filter_cabang = '';
 
+// Filter Module (admin, gudang, homepage, kasir, dll)
+$current_module = $_GET['module'] ?? 'unknown';
+
 // Update status user yang sedang request
 if(isset($_SESSION['user_id'])) {
     $uid = $_SESSION['user_id'];
-    $koneksi->query("UPDATE users SET last_active = NOW() WHERE id = '$uid'");
+    
+    // Update last_active AND last_module
+    $stmt = $koneksi->prepare("UPDATE users SET last_active = NOW(), last_module = ? WHERE id = ?");
+    $stmt->bind_param("si", $current_module, $uid);
+    $stmt->execute();
+} else {
+    // debugLog("No User Session Found");
 }
 
 session_write_close();
@@ -41,15 +50,33 @@ while (true) {
 
     $response_data = [];
 
-    // --- FITUR A: HITUNG USER ONLINE ---
+    // --- FITUR A: HITUNG USER ONLINE PER MODULE ---
     $time_limit = date('Y-m-d H:i:s', time() - 120); 
-    $sql = "SELECT COUNT(*) as online FROM users WHERE last_active > '$time_limit' AND level IN ('admin', 'karyawan')"; 
     
-    if (!empty($filter_cabang)) {
-        $sql .= " AND (cabang_id = '$filter_cabang' OR level = 'admin')";
+    // Default logic: Count users in the SAME module (or specific logic)
+    // User requested: "ketika admin berpindah ke gudang maka pada admin akan berkurang"
+    // So we count users where last_module = 'admin' OR 'gudang' separately?
+    // Or just return the count relevant to the viewer? 
+    // Let's return the count of users in the CURRENT module being viewed.
+    
+    $sql_count = "SELECT COUNT(*) as online FROM users WHERE last_active > '$time_limit'";
+    
+    if ($current_module == 'admin') {
+         // Show users currently in Admin Module
+         $sql_count .= " AND last_module = 'admin'";
+    } elseif ($current_module == 'gudang') {
+         // Show users currently in Gudang Module
+         $sql_count .= " AND last_module = 'gudang'";
+    } else {
+         // Fallback / Homepage: Show total logged in users
+         // $sql_count .= ""; // All active users
     }
 
-    $res = $koneksi->query($sql);
+    if (!empty($filter_cabang)) {
+        $sql_count .= " AND (cabang_id = '$filter_cabang' OR level = 'admin')";
+    }
+
+    $res = $koneksi->query($sql_count);
     $response_data['online_users'] = ($res) ? $res->fetch_assoc()['online'] : 0;
 
     // --- FITUR B: CEK NOTIFIKASI RESERVASI ---

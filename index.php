@@ -55,20 +55,6 @@ $q_cabang = $koneksi->query("SELECT * FROM cabang ORDER BY is_pusat DESC, id ASC
     
     <link rel="shortcut icon" href="assets/images/pngkey.com-food-network-logo-png-430444.png" type="image/x-icon">
     
-    <!-- PWA & SPA -->
-    <link rel="manifest" href="/penjualanv2/manifest.json">
-    <script type="module">
-        import hotwiredTurbo from 'https://cdn.skypack.dev/@hotwired/turbo';
-    </script>
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/penjualanv2/service-worker.js');
-            });
-        }
-    </script>
-    <style>body { transition: opacity 0.2s; } body[data-turbo-preview] { opacity: 0.6; }</style>
-
     <style>
         :root {
             --primary: #6366f1; /* Indigo-500 */
@@ -145,6 +131,15 @@ $q_cabang = $koneksi->query("SELECT * FROM cabang ORDER BY is_pusat DESC, id ASC
         .font-bold { font-weight: 700; }
         .uppercase { text-transform: uppercase; }
         .tracking-wide { letter-spacing: 1px; }
+
+
+        /* Responsive Utilities */
+        .d-none { display: none !important; }
+        
+        @media (min-width: 769px) {
+            .d-md-none { display: none !important; }
+            .d-md-block { display: block !important; }
+        }
 
         /* Navbar */
         .navbar {
@@ -351,9 +346,13 @@ $q_cabang = $koneksi->query("SELECT * FROM cabang ORDER BY is_pusat DESC, id ASC
     <nav class="navbar" id="navbar">
         <div class="container flex items-center justify-between">
             <a href="#" class="flex items-center gap-2">
-                <img src="assets/images/pngkey.com-food-network-logo-png-430444.png" alt="Logo" style="height: 40px; filter: brightness(0) invert(1);">
+                <img src="assets/images/pngkey.com-food-network-logo-png-430444.png" alt="Logo" style="height: 40px;">
                 <span style="font-family: var(--font-display); font-weight: 700; font-size: 1.25rem; color: white;">Modern Bites</span>
             </a>
+
+            <button class="mobile-toggle d-md-none text-white fs-4 bg-transparent border-0" style="font-size: 2rem !important; background: transparent !important;">
+                <i class="fas fa-bars"></i>
+            </button>
 
             <ul class="nav-links">
                 <li><a href="#home" class="nav-link active">Beranda</a></li>
@@ -362,17 +361,86 @@ $q_cabang = $koneksi->query("SELECT * FROM cabang ORDER BY is_pusat DESC, id ASC
                 <?php if($q_promo && $q_promo->num_rows > 0): ?><li><a href="#promo" class="nav-link">Promo</a></li><?php endif; ?>
                 <li><a href="#menu" class="nav-link">Menu</a></li>
                 <li><a href="#contact" class="nav-link">Lokasi</a></li>
+                <li class="d-md-none mt-3">
+                    <?php if ($is_logged_in): ?>
+                        <a href="<?= ($level_user=='pelanggan') ? 'pelanggan/' : 'admin/' ?>" class="btn btn-primary w-100">
+                            <?= ($level_user=='pelanggan') ? '<i class="fas fa-utensils"></i> Pesan' : '<i class="fas fa-tachometer-alt"></i> Dashboard' ?>
+                        </a>
+                    <?php else: ?>
+                        <a href="login" class="btn btn-outline w-100">Masuk</a>
+                    <?php endif; ?>
+                </li>
             </ul>
 
-            <div class="auth-buttons">
+            <div class="auth-buttons d-none d-md-block">
             <?php if ($is_logged_in): ?>
                 <a href="<?= ($level_user=='pelanggan') ? 'pelanggan/' : 'admin/' ?>" class="btn btn-primary">
                     <?= ($level_user=='pelanggan') ? '<i class="fas fa-utensils"></i> Pesan' : '<i class="fas fa-tachometer-alt"></i> Dashboard' ?>
                 </a>
             <?php else: ?>
-                <a href="login.php" class="btn btn-outline">Masuk</a>
+                <a href="login" class="btn btn-outline">Masuk</a>
             <?php endif; ?>
             </div>
+        </div>
+    </nav>
+
+    <style>
+        /* Mobile Menu Styles */
+        @media (max-width: 768px) {
+            .nav-links {
+                position: fixed;
+                top: 80px; left: 0; width: 100%;
+                background: rgba(15, 23, 42, 0.95);
+                flex-direction: column;
+                padding: 2rem;
+                gap: 1.5rem;
+                backdrop-filter: blur(10px);
+                border-bottom: 1px solid rgba(255,255,255,0.1);
+                transform: translateY(-150%);
+                transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                z-index: 999;
+            }
+            .nav-links.active {
+                display: flex; /* Override display:none */
+                transform: translateY(0);
+            }
+            .nav-link { font-size: 1.1rem; display: block; width: 100%; text-align: center; }
+            .auth-buttons { display: none; }
+        }
+    </style>
+    
+    <script>
+        // Mobile Toggle Logic
+        document.addEventListener('DOMContentLoaded', () => {
+            const toggleBtn = document.querySelector('.mobile-toggle');
+            const navLinks = document.querySelector('.nav-links');
+            
+            if(toggleBtn) {
+                toggleBtn.addEventListener('click', () => {
+                    navLinks.classList.toggle('active');
+                    const icon = toggleBtn.querySelector('i');
+                    if(navLinks.classList.contains('active')) {
+                        icon.classList.remove('fa-bars');
+                        icon.classList.add('fa-times');
+                    } else {
+                        icon.classList.remove('fa-times');
+                        icon.classList.add('fa-bars');
+                    }
+                });
+            }
+            
+            // Close menu when clicking link
+            document.querySelectorAll('.nav-link').forEach(l => {
+                l.addEventListener('click', () => {
+                    if(window.innerWidth < 768) {
+                        navLinks.classList.remove('active');
+                        toggleBtn.querySelector('i').classList.remove('fa-times');
+                        toggleBtn.querySelector('i').classList.add('fa-bars');
+                    }
+                });
+            });
+        });
+    </script>
         </div>
     </nav>
 
@@ -678,50 +746,83 @@ $q_cabang = $koneksi->query("SELECT * FROM cabang ORDER BY is_pusat DESC, id ASC
                 </div>
             </div>
             <div style="border-top: 1px solid rgba(255,255,255,0.1); margin-top: 40px; padding-top: 20px; text-align: center; font-size: 0.85rem; opacity: 0.5;">
-                © <?= date('Y') ?> Waroeng Modern Bites. Created by Lopyta.
+                © <?= date('Y') ?> Waroeng Modern Bites. Created by Lopyta. 
+                <span id="sse-indicator" class="badge ms-2" style="background: #ef4444; font-weight: 500; font-size: 0.75rem;">
+                    <i class="fas fa-wifi"></i> <span id="sse-text">Offline</span>
+                </span>
+                <span class="ms-2" style="font-size: 0.75rem; color: #94a3b8;">
+                    <i class="fas fa-users"></i> <span id="online-count">0</span> Online
+                </span>
             </div>
         </div>
     </footer>
 
     <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
     <script>
-        document.addEventListener('turbo:load', () => {
-             // Re-init Animate On Scroll
-            AOS.init({ duration: 800, once: true });
+        AOS.init({ duration: 800, once: true });
 
-            // Navbar Scroll Effect
-            const navbar = document.querySelector('.navbar');
-            const onScroll = () => {
-                if (window.scrollY > 50) {
-                    navbar.classList.add('glass-nav');
-                } else {
-                    navbar.classList.remove('glass-nav');
+        // Navbar Scroll Effect
+        const navbar = document.querySelector('.navbar');
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 50) {
+                navbar.classList.add('glass-nav');
+            } else {
+                navbar.classList.remove('glass-nav');
+            }
+        });
+
+        // Scrollspy
+        const sections = document.querySelectorAll('section');
+        const navLinks = document.querySelectorAll('.nav-link');
+
+        window.addEventListener('scroll', () => {
+            let current = '';
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop;
+                if (scrollY >= sectionTop - 150) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            navLinks.forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href').includes(current)) {
+                    link.classList.add('active');
+                }
+            });
+        });
+
+        // System Live Connection (Global)
+        if(typeof(EventSource) !== "undefined") {
+            const sseIndicator = document.getElementById('sse-indicator');
+            const sseText = document.getElementById('sse-text');
+            const onlineCount = document.getElementById('online-count');
+
+            const source = new EventSource("admin/api/sse_channel.php?module=homepage");
+
+            source.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                
+                // Update Online Users
+                if(data.online_users !== undefined && onlineCount) {
+                    onlineCount.innerText = data.online_users;
                 }
             };
-            window.addEventListener('scroll', onScroll);
 
-            // Scrollspy
-            const sections = document.querySelectorAll('section');
-            const navLinks = document.querySelectorAll('.nav-link');
-
-            const onScrollSpy = () => {
-                let current = '';
-                sections.forEach(section => {
-                    const sectionTop = section.offsetTop;
-                    if (scrollY >= sectionTop - 150) {
-                        current = section.getAttribute('id');
-                    }
-                });
-
-                navLinks.forEach(link => {
-                    link.classList.remove('active');
-                    if (link.getAttribute('href').includes(current)) {
-                        link.classList.add('active');
-                    }
-                });
+            source.onopen = function() {
+                if(sseIndicator) {
+                    sseIndicator.style.background = '#10b981'; // Green
+                    sseText.innerText = 'System Live';
+                }
             };
-            window.addEventListener('scroll', onScrollSpy);
-        });
+
+            source.onerror = function() {
+                if(sseIndicator) {
+                    sseIndicator.style.background = '#ef4444'; // Red
+                    sseText.innerText = 'Reconnecting...';
+                }
+            };
+        }
     </script>
 </body>
 </html>
