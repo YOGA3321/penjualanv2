@@ -1,5 +1,5 @@
 git add .
-git commit -m "coba update"
+git commit -m "fitur pwa spa"
 git push origin main
 
 git push origin feature-gudang

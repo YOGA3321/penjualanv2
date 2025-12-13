@@ -54,6 +54,20 @@ $q_cabang = $koneksi->query("SELECT * FROM cabang ORDER BY is_pusat DESC, id ASC
     <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
     
     <link rel="shortcut icon" href="assets/images/pngkey.com-food-network-logo-png-430444.png" type="image/x-icon">
+    
+    <!-- PWA & SPA -->
+    <link rel="manifest" href="/penjualanv2/manifest.json">
+    <script type="module">
+        import hotwiredTurbo from 'https://cdn.skypack.dev/@hotwired/turbo';
+    </script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/penjualanv2/service-worker.js');
+            });
+        }
+    </script>
+    <style>body { transition: opacity 0.2s; } body[data-turbo-preview] { opacity: 0.6; }</style>
 
     <style>
         :root {
@@ -671,37 +685,42 @@ $q_cabang = $koneksi->query("SELECT * FROM cabang ORDER BY is_pusat DESC, id ASC
 
     <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
     <script>
-        AOS.init({ duration: 800, once: true });
+        document.addEventListener('turbo:load', () => {
+             // Re-init Animate On Scroll
+            AOS.init({ duration: 800, once: true });
 
-        // Navbar Scroll Effect
-        const navbar = document.querySelector('.navbar');
-        window.addEventListener('scroll', () => {
-            if (window.scrollY > 50) {
-                navbar.classList.add('glass-nav');
-            } else {
-                navbar.classList.remove('glass-nav');
-            }
-        });
-
-        // Scrollspy
-        const sections = document.querySelectorAll('section');
-        const navLinks = document.querySelectorAll('.nav-link');
-
-        window.addEventListener('scroll', () => {
-            let current = '';
-            sections.forEach(section => {
-                const sectionTop = section.offsetTop;
-                if (scrollY >= sectionTop - 150) {
-                    current = section.getAttribute('id');
+            // Navbar Scroll Effect
+            const navbar = document.querySelector('.navbar');
+            const onScroll = () => {
+                if (window.scrollY > 50) {
+                    navbar.classList.add('glass-nav');
+                } else {
+                    navbar.classList.remove('glass-nav');
                 }
-            });
+            };
+            window.addEventListener('scroll', onScroll);
 
-            navLinks.forEach(link => {
-                link.classList.remove('active');
-                if (link.getAttribute('href').includes(current)) {
-                    link.classList.add('active');
-                }
-            });
+            // Scrollspy
+            const sections = document.querySelectorAll('section');
+            const navLinks = document.querySelectorAll('.nav-link');
+
+            const onScrollSpy = () => {
+                let current = '';
+                sections.forEach(section => {
+                    const sectionTop = section.offsetTop;
+                    if (scrollY >= sectionTop - 150) {
+                        current = section.getAttribute('id');
+                    }
+                });
+
+                navLinks.forEach(link => {
+                    link.classList.remove('active');
+                    if (link.getAttribute('href').includes(current)) {
+                        link.classList.add('active');
+                    }
+                });
+            };
+            window.addEventListener('scroll', onScrollSpy);
         });
     </script>
 </body>

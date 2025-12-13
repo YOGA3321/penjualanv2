@@ -46,6 +46,21 @@ if(isset($_SESSION['level'])) {
     <link rel="shortcut icon" href="../assets/images/pngkey.com-food-network-logo-png-430444.png" type="image/x-icon">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     
+    <!-- PWA & SPA (Turbo) -->
+    <link rel="manifest" href="/penjualanv2/manifest.json">
+    <script type="module">
+        import hotwiredTurbo from 'https://cdn.skypack.dev/@hotwired/turbo';
+    </script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/penjualanv2/service-worker.js')
+                .then(reg => console.log('SW Registered!', reg.scope))
+                .catch(err => console.log('SW Fail:', err));
+            });
+        }
+    </script>
+
     <style>
         .dashboard-wrapper { display: flex; height: 100vh; overflow: hidden; }
         .sidebar { width: 260px; height: 100vh; display: flex; flex-direction: column; background-color: #fff; border-right: 1px solid #e9ecef; z-index: 1040; flex-shrink: 0; }
@@ -53,6 +68,10 @@ if(isset($_SESSION['level'])) {
         .sidebar-nav { flex-grow: 1; overflow-y: auto; padding: 1rem 0; }
         .sidebar-footer { flex-shrink: 0; padding: 1.5rem; border-top: 1px solid #e9ecef; background: #fff; }
         .main-content { flex-grow: 1; overflow-y: auto; padding: 1.5rem; background-color: #f4f7fa; }
+        
+        /* Smooth Page Transition */
+        body { opacity: 1; transition: opacity 0.2s ease-in-out; }
+        body[data-turbo-preview] { opacity: 0.5; pointer-events: none; }
     </style>
 </head>
 <body>

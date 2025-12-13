@@ -84,7 +84,7 @@ $is_karyawan = (isset($_SESSION['level']) && $_SESSION['level'] == 'karyawan');
 ?>
 
 <script>
-    let globalEventSource = null;
+    var globalEventSource = window.globalEventSource || null;
 
     function initGlobalConnection() {
         const statusDot = document.getElementById('statusIndicator');
@@ -138,7 +138,12 @@ $is_karyawan = (isset($_SESSION['level']) && $_SESSION['level'] == 'karyawan');
         // ... (Sisa error handling sama) ...
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
+    // [SPA FIX] Gunakan turbo:load agar jalan setiap navigasi
+    document.addEventListener('turbo:load', () => {
+        // Close existing connection if any (to prevent duplicates)
+        if(globalEventSource) {
+            globalEventSource.close();
+        }
         initGlobalConnection();
     });
 </script>
