@@ -590,7 +590,7 @@ $q_cabang = $koneksi->query("SELECT * FROM cabang ORDER BY is_pusat DESC, id ASC
                 <div class="col-half" style="flex: 0 0 350px; max-width: 350px;" data-aos="fade-up">
                     <div class="menu-card">
                         <div class="card-img">
-                            <img src="<?= $p['gambar'] ? 'admin/'.$p['gambar'] : 'assets/images/menu1.jpg' ?>" alt="<?= $p['nama_menu'] ?>">
+                            <img src="<?= $p['gambar'] ? $p['gambar'] : 'assets/images/menu1.jpg' ?>" alt="<?= $p['nama_menu'] ?>">
                             <div class="price-badge" style="background: #e11d48; color: white;">
                                  Rp <?= number_format($p['harga_promo'],0,',','.') ?>
                             </div>
@@ -653,7 +653,7 @@ $q_cabang = $koneksi->query("SELECT * FROM cabang ORDER BY is_pusat DESC, id ASC
                             #<?= $rank++ ?>
                         </div>
                         <?php endif; ?>
-                        <img src="<?= $m['gambar'] ? 'admin/'.$m['gambar'] : 'assets/images/menu2.jpg' ?>" alt="<?= $m['nama_menu'] ?>">
+                        <img src="<?= $m['gambar'] ? $m['gambar'] : 'assets/images/menu2.jpg' ?>" alt="<?= $m['nama_menu'] ?>">
                         <div class="price-badge">Rp <?= number_format($m['harga'],0,',','.') ?></div>
                     </div>
                     <div class="card-body">
