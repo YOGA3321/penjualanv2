@@ -91,10 +91,14 @@ $is_karyawan = (isset($_SESSION['level']) && $_SESSION['level'] == 'karyawan');
         const onlineCount = document.getElementById('onlineCount');
 
         // Detect Module
-        const isGudang = window.location.href.includes('/gudang');
+        const isGudang = window.location.href.includes('/gudang/');
         const moduleParam = isGudang ? 'gudang' : 'admin';
+        
+        // [FIX] Use Absolute Path
+        const baseUrl = '<?= defined("BASE_URL") ? BASE_URL : ".." ?>';
+        const sseUrl = `${baseUrl}/${moduleParam}/api/sse_channel.php?cabang_id=<?= $sse_cabang ?>&module=${moduleParam}`;
 
-        globalEventSource = new EventSource('api/sse_channel?cabang_id=<?= $sse_cabang ?>&module=' + moduleParam);
+        globalEventSource = new EventSource(sseUrl);
 
         globalEventSource.onmessage = function(event) {
             const data = JSON.parse(event.data);

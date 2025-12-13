@@ -30,7 +30,7 @@ if(isset($_SESSION['user_id'])) {
     $stmt->bind_param("si", $current_module, $uid);
     $stmt->execute();
 } else {
-    // debugLog("No User Session Found");
+    // No Session
 }
 
 session_write_close();

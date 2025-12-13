@@ -1,5 +1,6 @@
 -- 1. Update ENUM level di tabel users untuk support 'gudang'
 ALTER TABLE users MODIFY COLUMN level ENUM('admin', 'karyawan', 'pelanggan', 'gudang') NOT NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_module VARCHAR(50) DEFAULT NULL AFTER last_active;
 
 -- 2. Tabel Master Barang Gudang (Bahan Baku & Produk Jadi)
 CREATE TABLE IF NOT EXISTS `gudang_items` (
