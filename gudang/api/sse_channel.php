@@ -14,12 +14,13 @@ if(function_exists('apache_setenv')){ @apache_setenv('no-gzip', 1); }
 while (ob_get_level() > 0) { ob_end_flush(); }
 ob_implicit_flush(1);
 
-// Update status user active
 $current_module = $_GET['module'] ?? 'unknown';
+$uid = null;
 
+// Ambil ID user dari session
 if(isset($_SESSION['user_id'])) {
     $uid = $_SESSION['user_id'];
-    // Update last_active AND last_module
+    // Update awal (init)
     $stmt = $koneksi->prepare("UPDATE users SET last_active = NOW(), last_module = ? WHERE id = ?");
     $stmt->bind_param("si", $current_module, $uid);
     $stmt->execute();
@@ -37,12 +38,16 @@ $last_pending_count = -1;
 while (true) {
     if ((time() - $start) > 40) die(); // Refresh connection every 40s
 
+    // --- [FIX] HEARTBEAT: Jaga User Tetap Online ---
+    if ($uid) {
+        $koneksi->query("UPDATE users SET last_active = NOW() WHERE id = '$uid'");
+    }
+
     $response_data = [];
 
-    // --- FITUR A: HITUNG USER ONLINE (System Live - WAREHOUSE CONTEXT) ---
+    // --- FITUR A: HITUNG USER ONLINE ---
     $time_limit = date('Y-m-d H:i:s', time() - 120); 
     
-    // Logic count per module
     $sql_online = "SELECT COUNT(*) as online FROM users WHERE last_active > '$time_limit'";
     
     if ($current_module == 'gudang') {
@@ -54,8 +59,7 @@ while (true) {
     $res = $koneksi->query($sql_online);
     $response_data['online_users'] = ($res) ? $res->fetch_assoc()['online'] : 0;
 
-    // --- FITUR B: LIST DATA PERMINTAAN MASUK (Full Data untuk Table) ---
-    // Query Master Request
+    // --- FITUR B: LIST DATA PERMINTAAN MASUK ---
     $sql = "SELECT r.*, c.nama_cabang, u.nama as nama_user 
             FROM request_stok r 
             JOIN cabang c ON r.cabang_id = c.id
@@ -79,7 +83,6 @@ while (true) {
                                         WHERE rd.request_id='$req_id'");
             $items = [];
             while($d = $details->fetch_assoc()) {
-                // Pre-calc default kirim value logic
                 $d['default_kirim'] = min($d['qty_minta'], $d['stok_gudang']);
                 $items[] = $d;
             }
@@ -88,10 +91,9 @@ while (true) {
         }
     }
 
-    // Hash data request untuk efisiensi bandwidth (biar tidak kirim data besar kalau tidak berubah)
+    // Hash data request
     $current_hash = md5(json_encode($requests));
     
-    // Kirim full list jika ada perubahan data
     if ($current_hash !== $last_data_hash) {
         $response_data['request_list'] = $requests;
         $last_data_hash = $current_hash;
@@ -99,14 +101,9 @@ while (true) {
     
     $response_data['pending_requests'] = $current_pending_count;
 
-    // --- FITUR C: NOTIFIKASI TOAST BARU (One-time alert) ---
-    // Logic: jika count bertambah dari loop sebelumnya
+    // --- FITUR C: NOTIFIKASI TOAST BARU ---
     if ($last_pending_count != -1 && $current_pending_count > $last_pending_count) {
         $diff = $current_pending_count - $last_pending_count;
-        // Ambil info request terakhir
-        $latest = $requests[count($requests)-1] ?? null; // Asumsi sort ASC, latest di bawah (wait, query ASC berarti latest di bawah)
-        // Wait, query is ASC (FIFO). Latest created is at the bottom? Check created_at.
-        // Pending logic might be tricky with mixed status. Better query strictly by ID desc for latest alert.
         $sql_latest = "SELECT r.kode_request, c.nama_cabang FROM request_stok r JOIN cabang c ON r.cabang_id=c.id WHERE status='pending' ORDER BY r.id DESC LIMIT 1";
         $l_res = $koneksi->query($sql_latest);
         if($l_res && $l_res->num_rows > 0) {

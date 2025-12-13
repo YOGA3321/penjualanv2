@@ -21,7 +21,6 @@
             </p>
             
             <?php if($mobile_show_gudang): ?>
-                <!-- WAREHOUSE MENU -->
                 <ul class="list-unstyled">
                     <li><a href="../gudang/index" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-tachometer-alt fa-fw me-2"></i> Dashboard</a></li>
                     <li><a href="../gudang/inventory" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-boxes fa-fw me-2"></i> Manajemen Stok</a></li>
@@ -30,7 +29,6 @@
                     <li><a href="../gudang/pemasok" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-truck fa-fw me-2"></i> Data Pemasok</a></li>
                 </ul>
             <?php else: ?>
-                <!-- ADMIN MENU -->
                 <ul class="list-unstyled">
                     <li><a href="../admin/index" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-tachometer-alt fa-fw me-2"></i> Dashboard</a></li>
                     <li><a href="../admin/laporan" class="text-decoration-none px-4 py-2 d-block text-secondary fw-medium"><i class="fas fa-chart-line fa-fw me-2"></i> Laporan</a></li>
@@ -87,6 +85,11 @@ $is_karyawan = (isset($_SESSION['level']) && $_SESSION['level'] == 'karyawan');
     var globalEventSource = window.globalEventSource || null;
 
     function initGlobalConnection() {
+        // Mencegah duplikasi koneksi
+        if(globalEventSource && globalEventSource.readyState !== 2) {
+            return; 
+        }
+
         const statusDot = document.getElementById('statusIndicator');
         const onlineCount = document.getElementById('onlineCount');
 
@@ -94,68 +97,84 @@ $is_karyawan = (isset($_SESSION['level']) && $_SESSION['level'] == 'karyawan');
         const isGudang = window.location.href.includes('/gudang/');
         const moduleParam = isGudang ? 'gudang' : 'admin';
         
-        // [FIX] Use Absolute Path
+        // Setup Base URL (Menangani ../ dengan lebih aman)
         const baseUrl = '<?= defined("BASE_URL") ? BASE_URL : ".." ?>';
         const sseUrl = `${baseUrl}/${moduleParam}/api/sse_channel.php?cabang_id=<?= $sse_cabang ?>&module=${moduleParam}`;
 
+        console.log("Menghubungkan ke System Live: " + sseUrl); // Debugging
+
         globalEventSource = new EventSource(sseUrl);
 
-        globalEventSource.onmessage = function(event) {
-            const data = JSON.parse(event.data);
-            if(onlineCount) {
-                onlineCount.innerText = data.online_users;
-            }
-
-            // Dispatch System Event for Page-Specific Logic (e.g. Gudang)
-            window.dispatchEvent(new CustomEvent('sse-data', { detail: data }));
-
-            // Add Green Indicator when data flows
+        globalEventSource.onopen = function() {
+            // Indikator Kuning (Menghubungkan)
             if(statusDot) {
-                statusDot.classList.remove('bg-secondary');
-                statusDot.classList.add('bg-success');
-                statusDot.classList.add('shadow-active'); // Add glowing effect class if you want
+                statusDot.classList.remove('bg-secondary', 'bg-success');
+                statusDot.classList.add('bg-warning');
             }
+        };
 
-            // [FIX] NOTIFIKASI RESERVASI (HANYA KARYAWAN & DI POJOK KANAN BAWAH)
-            <?php if($is_karyawan): ?>
-            if(data.reservasi_alert && data.reservasi_alert.length > 0) {
-                data.reservasi_alert.forEach(msg => {
-                    // Gunakan Toast SweetAlert (Bottom End)
-                    const Toast = Swal.mixin({
-                        toast: true, 
-                        position: 'bottom-end', // Pojok Kanan Bawah
-                        showConfirmButton: true, // Tombol Konfirmasi
-                        confirmButtonText: 'Sudah',
-                        confirmButtonColor: '#198754',
-                        timer: 10000, // Muncul 10 detik
-                        timerProgressBar: true,
-                        didOpen: (toast) => {
-                            toast.addEventListener('mouseenter', Swal.stopTimer)
-                            toast.addEventListener('mouseleave', Swal.resumeTimer)
-                        }
+        globalEventSource.onmessage = function(event) {
+            try {
+                const data = JSON.parse(event.data);
+                
+                // Update User Online
+                if(onlineCount) {
+                    onlineCount.innerText = data.online_users;
+                }
+
+                // Indikator Hijau (Aktif)
+                if(statusDot) {
+                    statusDot.classList.remove('bg-secondary', 'bg-warning');
+                    statusDot.classList.add('bg-success');
+                }
+
+                // Dispatch System Event untuk halaman lain (Gudang/Admin)
+                window.dispatchEvent(new CustomEvent('sse-data', { detail: data }));
+
+                // [FITUR] NOTIFIKASI RESERVASI (KHUSUS KARYAWAN)
+                <?php if($is_karyawan): ?>
+                if(data.reservasi_alert && data.reservasi_alert.length > 0) {
+                    data.reservasi_alert.forEach(msg => {
+                        const Toast = Swal.mixin({
+                            toast: true, 
+                            position: 'bottom-end', 
+                            showConfirmButton: true, 
+                            confirmButtonText: 'Oke',
+                            confirmButtonColor: '#198754',
+                            timer: 10000, 
+                            timerProgressBar: true,
+                            didOpen: (toast) => {
+                                toast.addEventListener('mouseenter', Swal.stopTimer)
+                                toast.addEventListener('mouseleave', Swal.resumeTimer)
+                            }
+                        });
+                        Toast.fire({ icon: 'info', title: msg });
                     });
-                    Toast.fire({ icon: 'info', title: msg });
-                });
+                }
+                <?php endif; ?>
+
+            } catch (e) {
+                console.error("Error parsing SSE data", e);
             }
-            <?php endif; ?>
         };
         
-        globalEventSource.onerror = function() {
+        globalEventSource.onerror = function(err) {
+             console.log("SSE Connection lost, retrying...", err);
              if(statusDot) {
-                statusDot.classList.remove('bg-success');
+                statusDot.classList.remove('bg-success', 'bg-warning');
                 statusDot.classList.add('bg-secondary');
             }
         };
-
-        // ... (Sisa error handling sama) ...
     }
 
-    // [SPA FIX] Gunakan turbo:load agar jalan setiap navigasi
+    // [PENTING] Jalankan saat halaman selesai dimuat (Standard)
+    document.addEventListener('DOMContentLoaded', () => {
+        initGlobalConnection();
+    });
+    
+    // Fallback jika menggunakan Turbo/Hotwire di masa depan
     document.addEventListener('turbo:load', () => {
-        // Close existing connection if any (to prevent duplicates)
-        if(globalEventSource) {
-            globalEventSource.close();
-        }
+        if(globalEventSource) globalEventSource.close();
         initGlobalConnection();
     });
 </script>
