@@ -122,4 +122,64 @@ include '../layouts/admin/header.php';
     <?php endif; ?>
 </div>
 
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+    // --- REALTIME LISTENER FOR INCOMING GOODS ---
+    // Listen to changes. If a request status becomes 'dikirim', we should see it here.
+    // However, basic SSE logic in sse_channel sends 'request_history' for this branch.
+    // We can monitor 'request_history'. If any item in history has status=='dikirim' and is not currently in DOM, reload?
+    // Or simpler: Just reload page if hash changes? No, bad UX.
+    // Better: Render the list dynamically like request_stok.php?
+    // For now, let's keep it simple: If new 'dikirim' request detected via SSE, show Toast "Barang sedang dikirim dari gudang".
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        const sseUrl = 'api/sse_channel.php?cabang_id=<?= $cabang_id ?>'; 
+        const statusSource = new EventSource(sseUrl);
+        
+        let firstLoad = true;
+        let knownRequests = new Set([<?php foreach($requests as $r) echo "'".$r['kode_request']."',"; ?>]);
+
+        statusSource.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            
+            // Check History for new 'dikirim' items
+            if(data.request_history) {
+                // Check if any 'dikirim' item is new
+                let hasNew = false;
+                data.request_history.forEach(r => {
+                    if(r.status === 'dikirim' && !knownRequests.has(r.kode_request)) {
+                        hasNew = true;
+                        knownRequests.add(r.kode_request);
+                        // Show Alert
+                         Swal.fire({
+                            title: 'Kiriman Barang Baru!',
+                            text: `Request ${r.kode_request} sedang dikirim dari gudang.`,
+                            icon: 'info',
+                            showConfirmButton: true,
+                            confirmButtonText: 'Refresh Halaman'
+                        }).then((res) => {
+                            if(res.isConfirmed) location.reload();
+                        });
+                    }
+                });
+            }
+        };
+    });
+</script>
+
+<?php if (isset($_SESSION['swal'])): ?>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        Swal.fire({
+            icon: '<?= $_SESSION['swal']['icon'] ?>',
+            title: '<?= $_SESSION['swal']['title'] ?>',
+            text: '<?= $_SESSION['swal']['text'] ?>',
+            timer: 3000,
+            showConfirmButton: false
+        });
+    });
+</script>
+<?php unset($_SESSION['swal']); endif; ?>
+
 <?php include '../layouts/admin/footer.php'; ?>

@@ -140,16 +140,16 @@ new Chart(ctx, {
 
 // 2. SSE Notifications
 if(typeof(EventSource) !== "undefined") {
-const source = new EventSource("api/sse_notifications.php");
+const source = new EventSource("api/sse_channel.php");
     
     source.onmessage = function(event) {
         const data = JSON.parse(event.data);
         
-        // 1. Update System Live (Online Users)
-        if(data.online_users !== undefined) {
-             const el = document.getElementById('onlineCount');
-             if(el) el.innerText = data.online_users;
-        }
+        // 1. Update System Live (Online Users) - HANDLED BY FOOTER GLOBAL SSE
+        // if(data.online_users !== undefined) {
+        //      const el = document.getElementById('onlineCount');
+        //      if(el) el.innerText = data.online_users;
+        // }
 
         // 2. Update Request Pending Counter
         if(data.pending_requests !== undefined) {

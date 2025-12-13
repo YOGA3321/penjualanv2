@@ -90,6 +90,36 @@ while (true) {
         }
     }
 
+    // --- FITUR D: STATUS REQUEST STOK (Realtime Update) ---
+    // Cek perubahan status request untuk cabang ini (hanya jika ada filter cabang)
+    if (!empty($filter_cabang)) {
+        // [FIX] Sort Pending/Dikirim first, then by Date
+        $sql_req = "SELECT id, kode_request, status, created_at 
+                    FROM request_stok 
+                    WHERE cabang_id = '$filter_cabang' 
+                    ORDER BY CASE WHEN status IN ('pending', 'dikirim') THEN 0 ELSE 1 END ASC, created_at DESC 
+                    LIMIT 20";
+        $res_req = $koneksi->query($sql_req);
+        $req_data = [];
+        if ($res_req) {
+            while($r = $res_req->fetch_assoc()) {
+                $req_data[] = $r;
+            }
+        }
+        
+        $req_hash = md5(json_encode($req_data));
+        
+        // Simpan hash di static variables (simulasi dengan session/temp file jika perlu, tapi untuk loop ini pakai var luar loop)
+        // Note: $last_req_hash harus didefinisikan di luar loop
+        if (!isset($last_req_hash) || $req_hash !== $last_req_hash) {
+            $response_data['request_history'] = $req_data;
+            if (isset($last_req_hash)) { // Cuma kirim alert alert jika bukan first load
+                 // Optional: $response_data['request_alert'] = "Status Request Berubah!";
+            }
+            $last_req_hash = $req_hash;
+        }
+    }
+
     // Kirim Data JSON
     echo "data: " . json_encode($response_data) . "\n\n";
     flush();

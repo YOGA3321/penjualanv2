@@ -47,7 +47,7 @@ if (isset($_POST['submit_request'])) {
 $cabang_filter = $_SESSION['view_cabang_id'] ?? $_SESSION['cabang_id'];
 if($cabang_filter == 'pusat') $cabang_filter = 1;
 
-$history = $koneksi->query("SELECT * FROM request_stok WHERE cabang_id = '$cabang_filter' ORDER BY created_at DESC LIMIT 20");
+$history = $koneksi->query("SELECT * FROM request_stok WHERE cabang_id = '$cabang_filter' ORDER BY CASE WHEN status IN ('pending', 'dikirim') THEN 0 ELSE 1 END ASC, created_at DESC LIMIT 20");
 $gudang_items = $koneksi->query("SELECT * FROM gudang_items ORDER BY nama_item ASC");
 
 include '../layouts/admin/header.php';
@@ -110,7 +110,7 @@ include '../layouts/admin/header.php';
                                 <th class="text-end pe-4">Aksi</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="historyTableBody">
                             <?php foreach($history as $h): 
                                 $badge = 'bg-secondary';
                                 if($h['status']=='pending') $badge='bg-warning';
@@ -134,8 +134,59 @@ include '../layouts/admin/header.php';
     </div>
 </div>
 
-<!-- Template Row Script -->
+<!-- Template Row Script & Realtime Info -->
 <script>
+    // --- REALTIME LISTENER ---
+    // Menggunakan existing global connection dari footer jika ada, atau buat baru?
+    // Footer header.php membuat 'globalEventSource'. Kita bisa tap in.
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        // Cek apakah globalEventSource tersedia (dari footer)
+        // Karena ini script inline, mungkin perlu delay sedikit atau attach ke window
+        
+        // Kita buat listener spesifik saja agar aman
+        const sseUrl = 'api/sse_channel.php?cabang_id=<?= $cabang_filter ?>'; 
+        const statusSource = new EventSource(sseUrl);
+        
+        statusSource.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            
+            if(data.request_history) {
+                renderHistory(data.request_history);
+            }
+        };
+    });
+
+    function renderHistory(data) {
+        const tbody = document.getElementById('historyTableBody');
+        let html = '';
+        
+        if (data.length === 0) {
+             html = '<tr><td colspan="4" class="text-center py-3 text-muted">Belum ada riwayat.</td></tr>';
+        } else {
+            data.forEach(h => {
+                let badge = 'bg-secondary';
+                if(h.status === 'pending') badge = 'bg-warning text-dark';
+                else if(h.status === 'dikirim') badge = 'bg-info text-white';
+                else if(h.status === 'selesai') badge = 'bg-success';
+                
+                // Format Date (Simple)
+                // Assuming created_at is YYYY-MM-DD HH:MM:SS
+                let dateStr = h.created_at; 
+                
+                html += `<tr>
+                    <td class="ps-4 fw-bold text-primary">${h.kode_request}</td>
+                    <td class="small text-muted">${dateStr}</td>
+                    <td><span class="badge ${badge} text-uppercase">${h.status}</span></td>
+                    <td class="text-end pe-4">
+                        <button class="btn btn-sm btn-light border" onclick="showDetail(${h.id})">Detail</button>
+                    </td>
+                </tr>`;
+            });
+        }
+        tbody.innerHTML = html;
+    }
+
     // Clone first option list logic needed? simplenya clone innerhTML
     const itemOptions = `<?php foreach($gudang_items as $gi): ?><option value="<?= $gi['id'] ?>"><?= $gi['nama_item'] ?> (<?= $gi['satuan'] ?>)</option><?php endforeach; ?>`;
 

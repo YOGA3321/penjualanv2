@@ -1,6 +1,16 @@
 <?php
 if (session_status() == PHP_SESSION_NONE) { session_start(); }
 
+// OTOMATIS LOGOUT JIKA 1 JAM (3600 detik) TIDAK ADA AKTIVITAS
+$timeout_duration = 3600; 
+if (isset($_SESSION['LAST_ACTIVITY']) && (time() - $_SESSION['LAST_ACTIVITY']) > $timeout_duration) {
+    session_unset();
+    session_destroy();
+    header("Location: ../login.php?msg=timeout");
+    exit;
+}
+$_SESSION['LAST_ACTIVITY'] = time();
+
 $page_title = isset($page_title) ? $page_title : 'Admin Dashboard';
 $active_menu = isset($active_menu) ? $active_menu : '';
 
@@ -160,21 +170,16 @@ if(isset($_SESSION['level'])) {
     <main class="main-content">
         <header class="main-header d-flex justify-content-between align-items-center mb-4">
              <div class="header-left d-flex align-items-center">
-                 <!-- Added ms-n2 to pull button left if container has padding -->
-                 <button class="btn d-lg-none me-2 ms-n2" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas">
+                 <button class="btn d-lg-none me-3" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas">
                     <i class="fas fa-bars"></i>
                 </button>
                 <div>
-                    <!-- Responsive Title Size -->
-                    <h3 class="mb-0 fw-bold text-dark d-none d-sm-block"><?= $page_title ?></h3>
-                    <h5 class="mb-0 fw-bold text-dark d-block d-sm-none"><?= $page_title ?></h5>
-                    
-                    <!-- Hide location on very small screens to save space -->
-                    <p class="mb-0 text-muted small d-none d-sm-block"><i class="fas fa-map-marker-alt me-1 text-danger"></i> <?= $display_cabang ?></p>
+                    <h3 class="mb-0 fw-bold text-dark"><?= $page_title ?></h3>
+                    <p class="mb-0 text-muted small"><i class="fas fa-map-marker-alt me-1 text-danger"></i> <?= $display_cabang ?></p>
                 </div>
             </div>
             
-            <div class="header-right d-flex align-items-center gap-2 gap-md-3">
+            <div class="header-right d-flex align-items-center gap-3">
                 <?php if(isset($_SESSION['level']) && $_SESSION['level'] == 'admin'): ?>
                     <?php 
                         // Deteksi URL saat ini untuk menentukan tombol switch
@@ -184,9 +189,8 @@ if(isset($_SESSION['level'])) {
                         $btn_text = $is_gudang ? 'Switch ke Admin' : 'Switch ke Gudang';
                         $btn_class = $is_gudang ? 'btn-outline-primary' : 'btn-outline-secondary';
                     ?>
-                    <!-- Changed to d-flex (visible on mobile) -->
-                    <a href="<?= $target_url ?>" class="btn <?= $btn_class ?> btn-sm fw-bold shadow-sm d-flex align-items-center" title="Ganti Workspace">
-                        <i class="fas fa-exchange-alt me-1"></i> <span class="d-none d-md-inline"><?= $btn_text ?></span>
+                    <a href="<?= $target_url ?>" class="btn <?= $btn_class ?> btn-sm fw-bold shadow-sm d-none d-lg-flex align-items-center" title="Ganti Workspace">
+                        <i class="fas fa-exchange-alt me-1"></i> <span class="d-none d-xl-inline"><?= $btn_text ?></span>
                     </a>
                 <?php endif; ?>
 
@@ -198,24 +202,31 @@ if(isset($_SESSION['level'])) {
                     </div>
                 </div>
                 
-                <?php if(isset($_SESSION['level']) && $_SESSION['level'] == 'admin' && isset($_SESSION['view_cabang_id']) && $_SESSION['view_cabang_id'] != 'pusat'): ?>
+                <?php if(isset($_SESSION['level']) && $_SESSION['level'] == 'admin'): ?>
                     <?php
-                        $target = $_SESSION['view_cabang_id'];
-                        $c_status = $koneksi->query("SELECT is_open FROM cabang WHERE id='$target'")->fetch_assoc()['is_open'];
-                        $btn_cls = $c_status ? 'btn-success' : 'btn-danger';
-                        $btn_txt = $c_status ? 'TOKO BUKA' : 'TOKO TUTUP';
-                        $btn_icon = $c_status ? 'fa-door-open' : 'fa-door-closed';
-                        $confirm_msg = $c_status ? "Tutup toko sementara?" : "Buka toko kembali?";
+                        $target = $_SESSION['view_cabang_id'] ?? 'pusat';
+                        
+                        if($target != 'pusat'):
+                            $c_status = $koneksi->query("SELECT is_open FROM cabang WHERE id='$target'")->fetch_assoc()['is_open'];
+                            $btn_cls = $c_status ? 'btn-success' : 'btn-danger';
+                            $btn_txt = $c_status ? 'TOKO BUKA' : 'TOKO TUTUP';
+                            $btn_icon = $c_status ? 'fa-door-open' : 'fa-door-closed';
+                            $confirm_msg = $c_status ? "Tutup toko sementara?" : "Buka toko kembali?";
                     ?>
-                    <button onclick="toggleToko('<?= $target ?>', '<?= $confirm_msg ?>')" class="btn <?= $btn_cls ?> btn-sm fw-bold rounded-pill shadow-sm">
-                        <i class="fas <?= $btn_icon ?> me-1"></i> <?= $btn_txt ?>
-                    </button>
-                    <script>
-                    function toggleToko(id, msg) {
-                        Swal.fire({ title: 'Ubah Status?', text: msg, icon: 'question', showCancelButton: true, confirmButtonText: 'Ya, Ubah' })
-                        .then((r) => { if (r.isConfirmed) window.location.href = 'toggle_toko.php?id=' + id; });
-                    }
-                    </script>
+                        <button onclick="toggleToko('<?= $target ?>', '<?= $confirm_msg ?>')" class="btn <?= $btn_cls ?> btn-sm fw-bold rounded-pill shadow-sm">
+                            <i class="fas <?= $btn_icon ?> me-1"></i> <?= $btn_txt ?>
+                        </button>
+                        <script>
+                        function toggleToko(id, msg) {
+                            Swal.fire({ title: 'Ubah Status?', text: msg, icon: 'question', showCancelButton: true, confirmButtonText: 'Ya, Ubah' })
+                            .then((r) => { if (r.isConfirmed) window.location.href = 'toggle_toko.php?id=' + id; });
+                        }
+                        </script>
+                    <?php else: ?>
+                         <button class="btn btn-secondary btn-sm fw-bold rounded-pill shadow-sm" disabled title="Pilih cabang spesifik untuk mengatur status toko">
+                            <i class="fas fa-store me-1"></i> PILIH CABANG
+                        </button>
+                    <?php endif; ?>
                 <?php endif; ?>
                 
                 <?php if(isset($_SESSION['level']) && $_SESSION['level'] == 'admin' && !$show_gudang_menu): ?>
