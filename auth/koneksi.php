@@ -4,6 +4,16 @@
 // while maintaining original multi-environment support.
 
 // 1. Calculate BASE_URL first (needed for redirection)
+
+// Load .env
+if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
+    require_once __DIR__ . '/../vendor/autoload.php';
+    if (class_exists('Dotenv\Dotenv')) {
+        $dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/../');
+        $dotenv->safeLoad();
+    }
+}
+
 $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https://" : "http://";
 $host_server = $_SERVER['HTTP_HOST'];
 

@@ -247,7 +247,7 @@ $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://app.sandbox.midtrans.com/snap/snap.js" data-client-key="SB-Mid-client-m2n6kBqd8rsKrRST"></script>
+    <script src="https://app.sandbox.midtrans.com/snap/snap.js" data-client-key="<?= $_ENV['MIDTRANS_CLIENT_KEY'] ?>"></script>
     
     <script>
     let cart = JSON.parse(localStorage.getItem('cart_v2')) || [];

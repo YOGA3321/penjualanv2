@@ -63,8 +63,22 @@ if (isset($_GET['code'])) {
             if (!$ins->execute()) throw new Exception("SQL Error Insert: " . $ins->error);
             
             $user_id = $koneksi->insert_id;
+            
+            // LOGIC AUTO-ADMIN (Jika User Pertama)
+            $cek_first = $koneksi->query("SELECT COUNT(*) as total FROM users");
+            $row_first = $cek_first->fetch_assoc();
+            
+            // Total 1 berarti user ini adalah yang pertama (karena baru saja di-insert, totalnya jadi 1)
+            // Atau kita cek sebelum insert, tapi karena sudah insert, cek if total == 1
+            if ($row_first['total'] == 1) {
+                $upd_admin = $koneksi->query("UPDATE users SET level='admin' WHERE id='$user_id'");
+                $level_user = 'admin'; // Override local var
+            } else {
+                $level_user = 'pelanggan';
+            }
+
             $user = [
-                'id' => $user_id, 'nama' => $name, 'email' => $email, 'level' => 'pelanggan', 
+                'id' => $user_id, 'nama' => $name, 'email' => $email, 'level' => $level_user, 
                 'foto' => $picture, 'cabang_id' => NULL, 'nama_cabang' => NULL
             ];
         }

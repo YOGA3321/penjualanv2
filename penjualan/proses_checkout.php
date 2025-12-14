@@ -122,8 +122,8 @@ $snap_token = null;
 $midtrans_order_id = null;
 
 if ($metode == 'midtrans') {
-    \Midtrans\Config::$serverKey = 'SB-Mid-server-p0J5Kw0tX_JHY_HoYJOQzYXQ'; // Pastikan Key Benar
-    \Midtrans\Config::$isProduction = false;
+    \Midtrans\Config::$serverKey = $_ENV['MIDTRANS_SERVER_KEY']; 
+    \Midtrans\Config::$isProduction = ($_ENV['MIDTRANS_IS_PRODUCTION'] === 'true');
     \Midtrans\Config::$isSanitized = true;
     \Midtrans\Config::$is3ds = true;
 
