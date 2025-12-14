@@ -28,12 +28,12 @@ if (isset($_GET['token'])) {
                 $_SESSION['plg_cabang_id'] = $info['id_cabang'];
                 $_SESSION['plg_nama_cabang'] = $info['nama_cabang'];
                 $_SESSION['force_reset_cart'] = true;
-                header("Location: index.php"); exit;
+                header("Location: ./"); exit;
             }
         } else {
             if ($info['status'] == 'terisi') {
                 if (isset($_SESSION['plg_meja_id']) && $_SESSION['plg_meja_id'] == $info['id']) {
-                    header("Location: index.php"); exit;
+                    header("Location: ./"); exit;
                 } else {
                     $error_msg = "Meja sedang digunakan pelanggan lain.";
                 }
@@ -43,7 +43,7 @@ if (isset($_GET['token'])) {
                 $_SESSION['plg_cabang_id'] = $info['id_cabang'];
                 $_SESSION['plg_nama_cabang'] = $info['nama_cabang'];
                 $_SESSION['force_reset_cart'] = true;
-                header("Location: index.php"); exit;
+                header("Location: ./"); exit;
             }
         }
     } else {
@@ -70,11 +70,11 @@ if (!isset($_SESSION['plg_meja_id']) || isset($error_msg)) {
             <?php if(isset($error_msg)): ?>
                 <h4 class="text-danger fw-bold">Akses Ditolak</h4>
                 <p class="text-muted"><?= $error_msg ?></p>
-                <a href="../pelanggan/index.php" class="btn btn-outline-secondary rounded-pill mt-3">Kembali ke Dashboard</a>
+                <a href="../pelanggan/" class="btn btn-outline-secondary rounded-pill mt-3">Kembali ke Dashboard</a>
             <?php else: ?>
                 <h3>Selamat Datang!</h3>
                 <p class="text-muted">Silakan scan QR Code di meja Anda.</p>
-                <a href="../pelanggan/index.php" class="btn btn-primary rounded-pill mt-2">Buka Pemindai</a>
+                <a href="../pelanggan/" class="btn btn-primary rounded-pill mt-2">Buka Pemindai</a>
             <?php endif; ?>
         </div>
     </body>
@@ -121,7 +121,7 @@ $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_
     <div class="hero-header">
         <div class="d-flex align-items-center gap-3">
             <?php if($is_logged_in): ?>
-                <a href="../pelanggan/index.php" class="btn btn-light rounded-circle shadow-sm text-primary border" style="width: 40px; height: 40px; display:flex; align-items:center; justify-content:center;">
+                <a href="../pelanggan/" class="btn btn-light rounded-circle shadow-sm text-primary border" style="width: 40px; height: 40px; display:flex; align-items:center; justify-content:center;">
                     <i class="fas fa-home"></i>
                 </a>
             <?php endif; ?>
@@ -136,12 +136,12 @@ $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_
         </div>
         <div>
             <?php if($is_logged_in): ?>
-                <a href="../pelanggan/profil.php" class="text-dark fw-bold text-decoration-none d-flex align-items-center gap-2">
+                <a href="../pelanggan/profil" class="text-dark fw-bold text-decoration-none d-flex align-items-center gap-2">
                     <small class="text-muted d-none d-sm-block">Hi, <?= explode(' ', $user_name)[0] ?></small>
                     <img src="https://ui-avatars.com/api/?name=<?= urlencode($user_name) ?>&background=random" class="rounded-circle border" width="35" height="35">
                 </a>
             <?php else: ?>
-                <a href="../login.php" class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold">Login</a>
+                <a href="../auth/login" class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold">Login</a>
             <?php endif; ?>
         </div>
     </div>
@@ -429,7 +429,7 @@ $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_
                                 confirmButtonText: 'Cek Riwayat'
                             }).then(() => {
                                 // Arahkan ke riwayat, jangan ke sukses
-                                window.location.href = '../pelanggan/riwayat.php';
+                                window.location.href = '../pelanggan/riwayat';
                             });
                         },
                         
@@ -446,12 +446,12 @@ $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_
                                 text: 'Lanjutkan pembayaran melalui menu Riwayat.',
                                 confirmButtonText: 'Oke'
                             }).then(() => {
-                                window.location.href = '../pelanggan/riwayat.php';
+                                window.location.href = '../pelanggan/riwayat';
                             });
                         }
                     });
                 } else {
-                    window.location.href = 'konfirmasi_tunai.php?uuid=' + d.uuid;
+                    window.location.href = 'konfirmasi_tunai?uuid=' + d.uuid;
                 }
             } else if (d.status === 'price_changed') {
                 Swal.fire({ title: 'Harga Berubah!', text: d.message, icon: 'warning' }).then(() => location.reload());
@@ -466,9 +466,9 @@ $menus = $koneksi->query("SELECT m.*, k.nama_kategori FROM menu m JOIN kategori_
         .then(() => {
             localStorage.removeItem('cart_v2');
             <?php if($is_logged_in): ?>
-                window.location.href = '../pelanggan/riwayat.php';
+                window.location.href = '../pelanggan/riwayat';
             <?php else: ?>
-                window.location.href = 'sukses.php?uuid=' + uuid; 
+                window.location.href = 'sukses?uuid=' + uuid; 
             <?php endif; ?>
         });
     }

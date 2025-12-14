@@ -34,7 +34,7 @@ if (!empty($id)) {
 if(isset($_SERVER['HTTP_REFERER'])) {
     header("Location: " . $_SERVER['HTTP_REFERER']);
 } else {
-    header("Location: index.php");
+    header("Location: ./");
 }
 exit;
 ?>

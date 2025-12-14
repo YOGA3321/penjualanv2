@@ -1,7 +1,15 @@
 RewriteEngine On
 
-# 1. Mencegah user melihat isi direktori (Security)
+# 1. Mencegah user melihat isi direktori & Akses File Sensitif
 Options -Indexes
+
+<FilesMatch "^\.env|^\.git|composer\.json|composer\.lock|package\.json|custom_error_log\.log">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Block akses langsung ke folder internal (tetapi file didalamnya bisa diakses jika dipanggil)
+# RewriteRule ^(includes|vendor|install/master\.sql) - [F,L]
 
 # 2. Mengarahkan HTTPS (Opsional, jika di production nanti)
 # RewriteCond %{HTTPS} off
@@ -12,5 +20,7 @@ RewriteCond %{REQUEST_FILENAME} !-d
 RewriteCond %{REQUEST_FILENAME}.php -f
 RewriteRule ^(.*)$ $1.php [L]
 
-# 4. Error Handling (Opsional)
-ErrorDocument 404 /404.php
+# 4. Error Handling
+ErrorDocument 403 /penjualanv2/error/403.php
+ErrorDocument 404 /penjualanv2/error/404.php
+ErrorDocument 500 /penjualanv2/error/500.php

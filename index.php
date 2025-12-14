@@ -467,7 +467,7 @@ $q_cabang = $koneksi->query("SELECT * FROM cabang ORDER BY is_pusat DESC, id ASC
 
                     <div class="flex gap-4 mb-6">
                         <a href="#menu" class="btn btn-primary">Lihat Menu</a>
-                        <a href="pelanggan/index.php" class="btn btn-outline">Reservasi</a>
+                        <a href="pelanggan/" class="btn btn-outline">Reservasi</a>
                     </div>
 
                     <div class="flex items-center stats-container" style="margin-top: 3rem;">
@@ -601,7 +601,7 @@ $q_cabang = $koneksi->query("SELECT * FROM cabang ORDER BY is_pusat DESC, id ASC
                                 <span style="text-decoration: line-through; color: #94a3b8; font-size: 0.9rem;">Rp <?= number_format($p['harga'],0,',','.') ?></span>
                             </div>
                             <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 20px;"><?= substr($p['deskripsi'], 0, 50) ?>...</p>
-                            <a href="pelanggan/index.php" class="btn" style="background: #e11d48; color: white; width:100%;">Ambil Promo</a>
+                            <a href="pelanggan/" class="btn" style="background: #e11d48; color: white; width:100%;">Ambil Promo</a>
                         </div>
                     </div>
                 </div>
@@ -662,14 +662,14 @@ $q_cabang = $koneksi->query("SELECT * FROM cabang ORDER BY is_pusat DESC, id ASC
                             <div style="color: #f59e0b; font-size: 0.8rem;"><i class="fas fa-star"></i> 5.0</div>
                         </div>
                         <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 20px;"><?= substr($m['deskripsi'], 0, 60) ?>...</p>
-                        <a href="pelanggan/index.php" style="display: block; text-align: center; padding: 10px; border: 2px solid var(--primary); color: var(--primary); border-radius: 10px; font-weight: 600;">Pesan Sekarang</a>
+                        <a href="pelanggan/" style="display: block; text-align: center; padding: 10px; border: 2px solid var(--primary); color: var(--primary); border-radius: 10px; font-weight: 600;">Pesan Sekarang</a>
                     </div>
                 </div>
                 <?php endwhile; ?>
             </div>
             
             <div class="text-center" style="margin-top: 50px;">
-                <a href="pelanggan/index.php" class="btn btn-primary">Lihat Menu Lengkap</a>
+                <a href="pelanggan/" class="btn btn-primary">Lihat Menu Lengkap</a>
             </div>
         </div>
     </section>

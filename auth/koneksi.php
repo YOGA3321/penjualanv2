@@ -31,7 +31,7 @@ if (in_array($_SERVER['REMOTE_ADDR'], $whitelist_ip) || strpos($_SERVER['HTTP_HO
 }
 
 if (!$is_localhost_env) {
-    $fixed_domain = 'sale.lopyta.com'; 
+    $fixed_domain = $_ENV['HOSTING_DOMAIN']; 
     if (strpos($host_server, $fixed_domain) !== false) {
         $host_server = $fixed_domain; 
     }
@@ -55,16 +55,16 @@ if (in_array($_SERVER['REMOTE_ADDR'], $whitelist) || strpos($_SERVER['HTTP_HOST'
 
 if ($is_localhost) {
     // === SETTING LOCALHOST ===
-    $host = $_ENV['DB_HOST'] ?? 'localhost';
-    $db_user = $_ENV['DB_USER'] ?? 'root';
-    $db_pass = $_ENV['DB_PASS'] ?? '';
-    $db_name = $_ENV['DB_NAME'] ?? 'penjualan2';
+    $host = $_ENV['LOCALHOST_DB_HOST'];
+    $db_user = $_ENV['LOCALHOST_DB_USER'];
+    $db_pass = $_ENV['LOCALHOST_DB_PASS'];
+    $db_name = $_ENV['LOCALHOST_DB_NAME'];
 } else {
     // === SETTING HOSTING (LIVE) ===
-    $host = $_ENV['DB_HOST'] ?? 'localhost';
-    $db_user = $_ENV['DB_USER'] ?? 'u116133173_penjualan2'; 
-    $db_pass = $_ENV['DB_PASS'] ?? '@Yogabd46';             
-    $db_name = $_ENV['DB_NAME'] ?? 'u116133173_penjualan2'; 
+    $host = $_ENV['HOSTING_DB_HOST'];
+    $db_user = $_ENV['HOSTING_DB_USER']; 
+    $db_pass = $_ENV['HOSTING_DB_PASS'];             
+    $db_name = $_ENV['HOSTING_DB_NAME']; 
 }
 
 // 4. Try Connection
