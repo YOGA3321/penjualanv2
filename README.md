@@ -36,6 +36,7 @@ cp .env.example .env
 Edit file `.env` dan isi kredensial Anda:
 *   `GOOGLE_CLIENT_ID` & `GOOGLE_CLIENT_SECRET`: Dari Google Cloud Console.
 *   `MIDTRANS_SERVER_KEY` & `CLIENT_KEY`: Dari Dashboard Midtrans.
+*   `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`: Konfigurasi Database.
 
 ### 4. Instalasi Database
 Buka browser dan akses aplikasi:

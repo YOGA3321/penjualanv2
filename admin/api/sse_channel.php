@@ -106,7 +106,10 @@ while (true) {
         if ($current_file_time > $last_trigger_time) {
             $last_trigger_time = $current_file_time;
             $trigger_content = file_get_contents($trigger_file);
-            $response_data['payment_event'] = json_decode($trigger_content);
+            $trigger_json = json_decode($trigger_content, true);
+            if(isset($trigger_json['payment_event'])) {
+                $response_data['payment_event'] = $trigger_json['payment_event'];
+            }
         }
     }
 

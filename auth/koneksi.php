@@ -55,16 +55,16 @@ if (in_array($_SERVER['REMOTE_ADDR'], $whitelist) || strpos($_SERVER['HTTP_HOST'
 
 if ($is_localhost) {
     // === SETTING LOCALHOST ===
-    $host = 'localhost';
-    $db_user = 'root';
-    $db_pass = '';
-    $db_name = 'penjualan2';
+    $host = $_ENV['DB_HOST'] ?? 'localhost';
+    $db_user = $_ENV['DB_USER'] ?? 'root';
+    $db_pass = $_ENV['DB_PASS'] ?? '';
+    $db_name = $_ENV['DB_NAME'] ?? 'penjualan2';
 } else {
     // === SETTING HOSTING (LIVE) ===
-    $host = 'localhost';
-    $db_user = 'u116133173_penjualan2'; 
-    $db_pass = '@Yogabd46';             
-    $db_name = 'u116133173_penjualan2'; 
+    $host = $_ENV['DB_HOST'] ?? 'localhost';
+    $db_user = $_ENV['DB_USER'] ?? 'u116133173_penjualan2'; 
+    $db_pass = $_ENV['DB_PASS'] ?? '@Yogabd46';             
+    $db_name = $_ENV['DB_NAME'] ?? 'u116133173_penjualan2'; 
 }
 
 // 4. Try Connection
@@ -90,7 +90,7 @@ if ($install_needed) {
     $current_script = str_replace('\\', '/', $_SERVER['SCRIPT_NAME']);
     if (strpos($current_script, '/install/') === false) {
         // Redirect to Install Page using Absolute URL
-        header("Location: " . BASE_URL . "install/index.php");
+        header("Location: " . BASE_URL . "install/");
         exit;
     }
 }
