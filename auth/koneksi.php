@@ -55,16 +55,16 @@ if (in_array($_SERVER['REMOTE_ADDR'], $whitelist) || strpos($_SERVER['HTTP_HOST'
 
 if ($is_localhost) {
     // === SETTING LOCALHOST ===
-    $host = $_ENV['LOCALHOST_DB_HOST'];
-    $db_user = $_ENV['LOCALHOST_DB_USER'];
-    $db_pass = $_ENV['LOCALHOST_DB_PASS'];
-    $db_name = $_ENV['LOCALHOST_DB_NAME'];
+    $host = $_ENV['LOCALHOST_DB_HOST'] ?? 'localhost';
+    $db_user = $_ENV['LOCALHOST_DB_USER'] ?? ''; 
+    $db_pass = $_ENV['LOCALHOST_DB_PASS'] ?? ''; 
+    $db_name = $_ENV['LOCALHOST_DB_NAME'] ?? ''; 
 } else {
     // === SETTING HOSTING (LIVE) ===
-    $host = $_ENV['HOSTING_DB_HOST'];
-    $db_user = $_ENV['HOSTING_DB_USER']; 
-    $db_pass = $_ENV['HOSTING_DB_PASS'];             
-    $db_name = $_ENV['HOSTING_DB_NAME']; 
+    $host = $_ENV['HOSTING_DB_HOST'] ?? 'localhost';
+    $db_user = $_ENV['HOSTING_DB_USER'] ?? ''; 
+    $db_pass = $_ENV['HOSTING_DB_PASS'] ?? '';             
+    $db_name = $_ENV['HOSTING_DB_NAME'] ?? ''; 
 }
 
 // 4. Try Connection
