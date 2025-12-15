@@ -29,23 +29,22 @@ composer install
 Aplikasi menggunakan `vlucas/phpdotenv` untuk keamanan kredensial.
 
 ### 3. Setup Konfigurasi (.env)
-Copy file `.env.example` menjadi `.env`:
-```bash
-cp .env.example .env
-```
-Edit file `.env` dan isi kredensial Anda:
-*   `GOOGLE_CLIENT_ID` & `GOOGLE_CLIENT_SECRET`: Dari Google Cloud Console.
-*   `MIDTRANS_SERVER_KEY` & `CLIENT_KEY`: Dari Dashboard Midtrans.
-*   `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`: Konfigurasi Database.
+*   **Otomatis**: Jika Anda menggunakan **Installer** (langkah 4), file `.env` akan dibuat secara **otomatis**.
+*   **Manual**: Jika ingin setup manual, copy file `.env.example` menjadi `.env` dan isi kredensial DB Anda.
+    *   `GOOGLE_CLIENT_ID` & `GOOGLE_CLIENT_SECRET`: Dari Google Cloud Console.
+    *   `MIDTRANS_SERVER_KEY` & `CLIENT_KEY`: Dari Dashboard Midtrans.
 
-### 4. Instalasi Database
+### 4. Instalasi Database & Aplikasi
 Buka browser dan akses aplikasi:
 `http://localhost/penjualanv2/`
 
-Jika database belum ada, Anda akan diarahkan ke halaman **Instalasi Sistem**.
-1.  Pilih Mode **Otomatis**.
-2.  Masukkan User/Pass Database (biasanya user:`root`, pass kosong untuk lokal).
+Anda akan diarahkan ke halaman **Instalasi Sistem**.
+1.  Pilih Mode **Otomatis** jika database belum ada.
+2.  Masukkan Host, User, Pass, dan Nama DB.
 3.  Klik **Install Aplikasi**.
+    *   Installer akan membuat database (jika mode otomatis).
+    *   Membuat file `.env` berisi konfigurasi database Anda.
+    *   Membuat user admin default.
 
 ### 5. Login Pertama (Auto-Admin)
 1.  Klik **Masuk dengan Google** di halaman login.

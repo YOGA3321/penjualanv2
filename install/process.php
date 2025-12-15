@@ -82,22 +82,36 @@ if ($should_import) {
     }
 }
 
-// 4. Buat File Konfigurasi (auth/config.php)
-$configContent = "<?php\n";
-$configContent .= "// Auto-generated configuration by Installer\n";
-$configContent .= "define('DB_HOST', '" . addslashes($host) . "');\n";
-$configContent .= "define('DB_USER', '" . addslashes($user) . "');\n";
-$configContent .= "define('DB_PASS', '" . addslashes($pass) . "');\n";
-$configContent .= "define('DB_NAME', '" . addslashes($name) . "');\n";
-$configContent .= "?>";
+// 4. Buat/Update File .env
+$envFile = dirname(__DIR__) . '/.env';
+$envExample = dirname(__DIR__) . '/.env.example';
 
-$configFile = dirname(__DIR__) . '/auth/config.php';
-if (file_put_contents($configFile, $configContent)) {
-    // Redirect ke halaman sukses / login
-    // Kita arahkan ke root, nanti koneksi.php akan redirect ke login jika belum login
+// Ambil template dari .env.example jika ada
+if (file_exists($envExample)) {
+    $envContent = file_get_contents($envExample);
+} else {
+    // Fallback template jika .env.example hilang
+    $envContent = "LOCALHOST_DB_HOST=localhost\nLOCALHOST_DB_NAME=penjualan2\nLOCALHOST_DB_USER=root\nLOCALHOST_DB_PASS=\n\nHOSTING_DB_HOST=localhost\nHOSTING_DB_NAME=u116133173_penjualan2\nHOSTING_DB_USER=u116133173_penjualan2\nHOSTING_DB_PASS=@Yogabd46\nHOSTING_DOMAIN=waroengmodern.com\n\nGOOGLE_CLIENT_ID=\nGOOGLE_CLIENT_SECRET=\n\nMIDTRANS_CLIENT_KEY=\nMIDTRANS_SERVER_KEY=\nMIDTRANS_IS_PRODUCTION=false";
+}
+
+// Replace DB Credentials untuk Localhost (Asumsi install di local/hybrid)
+// Kita update kedua set (Local & Hosting) dengan value yang sama dari input installer
+// Supaya aman dimanapun dideploy sementara waktu.
+$envContent = preg_replace('/^LOCALHOST_DB_HOST=.*$/m', 'LOCALHOST_DB_HOST=' . $host, $envContent);
+$envContent = preg_replace('/^LOCALHOST_DB_NAME=.*$/m', 'LOCALHOST_DB_NAME=' . $name, $envContent);
+$envContent = preg_replace('/^LOCALHOST_DB_USER=.*$/m', 'LOCALHOST_DB_USER=' . $user, $envContent);
+$envContent = preg_replace('/^LOCALHOST_DB_PASS=.*$/m', 'LOCALHOST_DB_PASS=' . $pass, $envContent);
+
+$envContent = preg_replace('/^HOSTING_DB_HOST=.*$/m', 'HOSTING_DB_HOST=' . $host, $envContent);
+$envContent = preg_replace('/^HOSTING_DB_NAME=.*$/m', 'HOSTING_DB_NAME=' . $name, $envContent);
+$envContent = preg_replace('/^HOSTING_DB_USER=.*$/m', 'HOSTING_DB_USER=' . $user, $envContent);
+$envContent = preg_replace('/^HOSTING_DB_PASS=.*$/m', 'HOSTING_DB_PASS=' . $pass, $envContent);
+
+if (file_put_contents($envFile, $envContent)) {
+    // Redirect Sukses
     header("Location: ../index.php?install=success");
 } else {
-    $error = "Gagal menulis file config.php. Cek permission folder auth.";
+    $error = "Gagal menulis file .env. Cek permission folder root.";
     header("Location: index.php?error=" . urlencode($error));
 }
 ?>

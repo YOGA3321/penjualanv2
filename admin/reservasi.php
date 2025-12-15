@@ -1,6 +1,6 @@
 <?php
 session_start();
-if (!isset($_SESSION['user_id']) || $_SESSION['level'] == 'pelanggan') { header("Location: ../login.php"); exit; }
+if (!isset($_SESSION['user_id']) || $_SESSION['level'] == 'pelanggan') { header("Location: ../auth/login"); exit; }
 require_once '../auth/koneksi.php';
 
 $page_title = "Data Reservasi";

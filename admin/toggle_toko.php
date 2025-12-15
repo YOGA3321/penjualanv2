@@ -4,7 +4,7 @@ require_once '../auth/koneksi.php';
 
 // Cek Login & Admin
 if (!isset($_SESSION['user_id']) || $_SESSION['level'] != 'admin') {
-    header("Location: ../login.php"); exit;
+    header("Location: ../auth/login"); exit;
 }
 
 $id = $_GET['id'] ?? '';
