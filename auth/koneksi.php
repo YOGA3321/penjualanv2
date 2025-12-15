@@ -37,10 +37,18 @@ if (!$is_localhost_env) {
     }
 }
 
+// 1b. Fix Protocol (Support Proxies/Cloudflare)
+if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
+    $protocol = "https://";
+}
+
 $base_url = $protocol . $host_server . $base_path;
 
+// Ensure BASE_URL always has a trailing slash to prevent URL stitching errors
+$base_url = rtrim($base_url, '/') . '/';
+
 if (!defined('BASE_URL')) {
-    define('BASE_URL', $base_url); // Removed trailing slash to prevent double slash in generated paths
+    define('BASE_URL', $base_url);
 }
 
 // 2. Set Timezone
