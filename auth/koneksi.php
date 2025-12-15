@@ -47,6 +47,12 @@ $base_url = $protocol . $host_server . $base_path;
 // Ensure BASE_URL always has a trailing slash to prevent URL stitching errors
 $base_url = rtrim($base_url, '/') . '/';
 
+// [NEW] OVERRIDE WITH APP_URL FROM ENV (Recommended for Production)
+// Ini solusi paling ampuh jika auto-detect path di hosting salah/bingung
+if (!empty($_ENV['APP_URL'])) {
+    $base_url = rtrim($_ENV['APP_URL'], '/') . '/';
+}
+
 if (!defined('BASE_URL')) {
     define('BASE_URL', $base_url);
 }
