@@ -68,20 +68,29 @@ if ($is_localhost) {
 }
 
 // 4. Try Connection
-// Suppress warnings (@) to handle redirect gracefully
-$koneksi = @mysqli_connect($host, $db_user, $db_pass, $db_name);
-
 $install_needed = false;
 
-if (!$koneksi) {
-    // Connection Failed (DB might not exist or credentials wrong)
-    $install_needed = true;
-} else {
-    // Connection Success, but check if Tables exist (e.g. 'users')
+// Matikan error reporting otomatis mysqli agar bisa kita tangkap manual (PENTING untuk PHP 8.1+)
+mysqli_report(MYSQLI_REPORT_OFF);
+
+try {
+    // Coba koneksi
+    $koneksi = mysqli_connect($host, $db_user, $db_pass, $db_name);
+    
+    // Cek manual jika koneksi mengembalikan false (untuk PHP versi lama)
+    if (!$koneksi) {
+        throw new Exception("Koneksi gagal");
+    }
+
+    // Jika koneksi berhasil, cek apakah tabel users ada
     $check_table = @mysqli_query($koneksi, "SELECT 1 FROM users LIMIT 1");
     if (!$check_table) {
-        $install_needed = true;
+        $install_needed = true; // DB ada, tapi tabel kosong -> Install
     }
+
+} catch (Exception $e) {
+    // Jika terjadi error (misal DB tidak ditemukan), anggap perlu install
+    $install_needed = true;
 }
 
 // 5. Redirect if Installation Needed
