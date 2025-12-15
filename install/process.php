@@ -102,10 +102,32 @@ $envContent = preg_replace('/^LOCALHOST_DB_NAME=.*$/m', 'LOCALHOST_DB_NAME=' . $
 $envContent = preg_replace('/^LOCALHOST_DB_USER=.*$/m', 'LOCALHOST_DB_USER=' . $user, $envContent);
 $envContent = preg_replace('/^LOCALHOST_DB_PASS=.*$/m', 'LOCALHOST_DB_PASS=' . $pass, $envContent);
 
+// 5. Detect Domain & Protocol for Hosting Config
+$protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https://" : "http://";
+if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
+    $protocol = "https://";
+}
+$current_host = $_SERVER['HTTP_HOST'];
+
+// Detect current path to determine APP_URL
+$doc_root = str_replace('\\', '/', $_SERVER['DOCUMENT_ROOT']);
+$dir_root = str_replace('\\', '/', dirname(__DIR__)); 
+$sub_path = str_replace($doc_root, '', $dir_root);
+if ($sub_path == '.') $sub_path = '';
+
+$detected_app_url = $protocol . $current_host . $sub_path;
+// Ensure trailing slash
+$detected_app_url = rtrim($detected_app_url, '/') . '/';
+
+// Update .env content with detected values
 $envContent = preg_replace('/^HOSTING_DB_HOST=.*$/m', 'HOSTING_DB_HOST=' . $host, $envContent);
 $envContent = preg_replace('/^HOSTING_DB_NAME=.*$/m', 'HOSTING_DB_NAME=' . $name, $envContent);
 $envContent = preg_replace('/^HOSTING_DB_USER=.*$/m', 'HOSTING_DB_USER=' . $user, $envContent);
 $envContent = preg_replace('/^HOSTING_DB_PASS=.*$/m', 'HOSTING_DB_PASS=' . $pass, $envContent);
+
+$envContent = preg_replace('/^HOSTING_DOMAIN=.*$/m', 'HOSTING_DOMAIN=' . $current_host, $envContent);
+$envContent = preg_replace('/^# APP_URL=.*$/m', 'APP_URL=' . $detected_app_url, $envContent); // Uncomment and set
+$envContent = preg_replace('/^APP_URL=.*$/m', 'APP_URL=' . $detected_app_url, $envContent); // Just in case it's already uncommented
 
 if (file_put_contents($envFile, $envContent)) {
     // Redirect Sukses
