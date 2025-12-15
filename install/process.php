@@ -12,6 +12,12 @@ $user = $_POST['db_user'];
 $pass = $_POST['db_pass'];
 $name = $_POST['db_name'];
 
+// API Credentials (Optional)
+$google_id = $_POST['google_id'] ?? '';
+$google_secret = $_POST['google_secret'] ?? '';
+$midtrans_client = $_POST['midtrans_client'] ?? '';
+$midtrans_server = $_POST['midtrans_server'] ?? '';
+
 // 1. Coba koneksi ke MySQL Server (tanpa pilih DB dulu)
 $conn = @mysqli_connect($host, $user, $pass);
 
@@ -128,6 +134,20 @@ $envContent = preg_replace('/^HOSTING_DB_PASS=.*$/m', 'HOSTING_DB_PASS=' . $pass
 $envContent = preg_replace('/^HOSTING_DOMAIN=.*$/m', 'HOSTING_DOMAIN=' . $current_host, $envContent);
 $envContent = preg_replace('/^# APP_URL=.*$/m', 'APP_URL=' . $detected_app_url, $envContent); // Uncomment and set
 $envContent = preg_replace('/^APP_URL=.*$/m', 'APP_URL=' . $detected_app_url, $envContent); // Just in case it's already uncommented
+
+// Update API Keys if provided
+if (!empty($google_id)) {
+    $envContent = preg_replace('/^GOOGLE_CLIENT_ID=.*$/m', 'GOOGLE_CLIENT_ID=' . $google_id, $envContent);
+}
+if (!empty($google_secret)) {
+    $envContent = preg_replace('/^GOOGLE_CLIENT_SECRET=.*$/m', 'GOOGLE_CLIENT_SECRET=' . $google_secret, $envContent);
+}
+if (!empty($midtrans_client)) {
+    $envContent = preg_replace('/^MIDTRANS_CLIENT_KEY=.*$/m', 'MIDTRANS_CLIENT_KEY=' . $midtrans_client, $envContent);
+}
+if (!empty($midtrans_server)) {
+    $envContent = preg_replace('/^MIDTRANS_SERVER_KEY=.*$/m', 'MIDTRANS_SERVER_KEY=' . $midtrans_server, $envContent);
+}
 
 if (file_put_contents($envFile, $envContent)) {
     // Redirect Sukses

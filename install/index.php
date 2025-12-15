@@ -132,6 +132,27 @@
             <input type="text" name="db_name" class="form-control" value="penjualan2" required>
         </div>
 
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 1.5rem 0;">
+        <h3 style="font-size: 1.1rem; color: #555; margin-bottom: 1rem;">Konfigurasi API (Opsional)</h3>
+
+        <div class="form-group">
+            <label>Google Client ID</label>
+            <input type="text" name="google_id" class="form-control" placeholder="Isi nanti boleh">
+        </div>
+        <div class="form-group">
+            <label>Google Client Secret</label>
+            <input type="text" name="google_secret" class="form-control" placeholder="Isi nanti boleh">
+        </div>
+
+        <div class="form-group">
+            <label>Midtrans Client Key</label>
+            <input type="text" name="midtrans_client" class="form-control" placeholder="Isi nanti boleh">
+        </div>
+        <div class="form-group">
+            <label>Midtrans Server Key</label>
+            <input type="text" name="midtrans_server" class="form-control" placeholder="Isi nanti boleh">
+        </div>
+
         <button type="submit" class="btn-primary">Install Aplikasi</button>
     </form>
 </div>
